@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef WITH_UGID
+#include <grp.h>
+#include <pwd.h>
+#endif
 
 #include <sys/mount.h>
 #include <sys/select.h>
@@ -26,6 +30,10 @@ struct diskmnt_ctx {
 	int dryrun;
 	int check;
 	int debug;
+#ifdef WITH_UGID
+	int uid;
+	int gid;
+#endif
 };
 
 struct diskmnt_ctx ctx;
@@ -68,6 +76,10 @@ static void process_mount(struct evenv *env)
 
 		if (mkdir(point, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH))
 			verror("Failed to create create dir '%s'", point);
+#ifdef WITH_UGID
+		if (ctx.uid && ctx.gid && chown(point, ctx.uid, ctx.gid))
+			verror("Failed to chown created dir '%s'", point);
+#endif
 
 		if (mount(device, point, fs, MS_NOATIME, opts))
 			error("Failed to mount '%s' to '%s', type '%s', opts '%s': %u (%s)",
@@ -202,6 +214,24 @@ static void handle_event(int sock)
 		env_free(env);
 }
 
+#ifdef WITH_UGID
+static int user2uid(const char *name)
+{
+	struct passwd *pwd = getpwnam(name);
+	if (!pwd)
+		die("User '%s' does not exist", name);
+	return pwd->pw_uid;
+}
+
+static int group2gid(const char *name)
+{
+	struct group *grp = getgrnam(name);
+	if (!grp)
+		die("Group '%s' does not exist", name);
+	return grp->gr_gid;
+}
+#endif
+
 static void
 print_usage(void)
 {
@@ -211,6 +241,10 @@ print_usage(void)
 		"  -d, --debug         Debug mode.\n"
 		"  -v, --verbose       Increase verbosity.\n"
 		"  -c, --check         Check config.\n"
+#ifdef WITH_UGID
+		"  -u, --user <name>   User name.\n"
+		"  -g, --group <name>  Group name.\n"
+#endif
 		"  -h, --help          Show this help.\n"
 	       );
 }
@@ -223,6 +257,10 @@ static struct option long_options[] =
 	{ "help",	no_argument,       0, 'h' },
 	{ "dry-run",	no_argument,       0, 'n' },
 	{ "verbose",	no_argument,       0, 'v' },
+#ifdef WITH_UGID
+	{ "user",	no_argument,       0, 'u' },
+	{ "group",	no_argument,       0, 'g' },
+#endif
 	{ 0, 0, 0, 0 }
 };
 
@@ -233,7 +271,7 @@ parse_options(int argc, char *argv[])
 
 	ctx.verbosity = 2;
 
-	while ((opt = getopt_long(argc, argv, "bcdhnv", long_options, &index)) != -1) {
+	while ((opt = getopt_long(argc, argv, "bcdg:hnu:v", long_options, &index)) != -1) {
 		switch(opt) {
 		case 'b':
 			ctx.daemonize = 1;
@@ -250,6 +288,14 @@ parse_options(int argc, char *argv[])
 		case 'v':
 			ctx.verbosity++;
 			break;
+#ifdef WITH_UGID
+		case 'u':
+			ctx.uid = user2uid(optarg);
+			break;
+		case 'g':
+			ctx.gid = group2gid(optarg);
+			break;
+#endif
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);

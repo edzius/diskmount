@@ -1,5 +1,6 @@
 
 CFLAGS += -p -O2 -D_GNU_SOURCE
+CFLAGS += -DWITH_UGID
 
 OBJ_diskmountd = \
 		 util.o \
