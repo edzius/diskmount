@@ -325,6 +325,9 @@ int main(int argc, char *argv[])
 	if (ctx.daemonize && daemon(0, 0) == -1)
 		die("daemon() failed\n");
 
+	if (ctx.daemonize)
+		syslog_open();
+
 	signal(SIGTERM, sigterm);
 	signal(SIGSEGV, sigterm);
 	signal(SIGQUIT, sigterm);
@@ -361,6 +364,8 @@ int main(int argc, char *argv[])
 	}
 
 	evsock_close(sock);
+
+	syslog_close();
 
 	return 0;
 }

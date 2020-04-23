@@ -4,11 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "util.h"
 
-static int level = LOG_INFO;
+static int level = LL_INFO;
 static int use_verbose;
+static int use_syslog;
 
 void __noreturn die(const char *format, ... )
 {
@@ -33,17 +35,29 @@ void __noreturn die(const char *format, ... )
 void log_write(int lvl, const char *fmt, va_list ap)
 {
 	switch (lvl) {
-	case LOG_DEBUG:
-		vprintf(fmt, ap);
+	case LL_DEBUG:
+		if (use_syslog)
+			vsyslog(LOG_DEBUG, fmt, ap);
+		else
+			vprintf(fmt, ap);
 		break;
-	case LOG_INFO:
-		vprintf(fmt, ap);
+	case LL_INFO:
+		if (use_syslog)
+			vsyslog(LOG_INFO, fmt, ap);
+		else
+			vprintf(fmt, ap);
 		break;
-	case LOG_WARN:
-		vprintf(fmt, ap);
+	case LL_WARN:
+		if (use_syslog)
+			vsyslog(LOG_WARNING, fmt, ap);
+		else
+			vprintf(fmt, ap);
 		break;
-	case LOG_ERROR:
-		vprintf(fmt, ap);
+	case LL_ERROR:
+		if (use_syslog)
+			vsyslog(LOG_ERR, fmt, ap);
+		else
+			vprintf(fmt, ap);
 		break;
 	}
 	printf("\n");
@@ -89,4 +103,15 @@ void log_debug(int st)
 int is_debug(void)
 {
 	return use_verbose;
+}
+
+void syslog_open(void)
+{
+	openlog(NULL, LOG_PID, LOG_DAEMON);
+	use_syslog = 1;
+}
+
+void syslog_close(void)
+{
+	closelog();
 }
