@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
 
 #include "util.h"
 #include "diskconf.h"
@@ -29,7 +30,7 @@ struct diskmnt_ctx {
 	int verbosity;
 	int daemonize;
 	int dryrun;
-	int check;
+	int kevent;
 	int debug;
 #ifdef WITH_UGID
 	int uid;
@@ -178,8 +179,96 @@ static void schedule_event(struct evenv *env)
 	env_free(env);
 }
 
-#ifdef WITH_EVSOCK
-static void handle_event(int sock)
+static void handle_kobj_event(int sock)
+{
+	struct evenv *env;
+	size_t descr;
+	size_t len;
+	size_t size = getpagesize() * 2;
+	char dbuf[size];
+	char *buf = dbuf;
+
+	memset(buf, 0, size);
+
+	len = nlsock_recv(sock, buf, size);
+	if (len < 0) {
+		warn("Failed kobject uevent receive");
+		return;
+	} else if (len == 0) {
+		info("Empty kobject uevent message");
+		return;
+	}
+
+	if (!strchr(buf, '@')) {
+		warn("Invalid kobject uevent format, size %zu", len);
+		return;
+	}
+
+	debug("Received kobject uevent, size %zu/%zu", size, len);
+
+	/* Skip desriptive line. */
+	descr = strlen(buf) + 1;
+	len -= descr;
+	buf += descr;
+
+	env = env_init(buf, len);
+	if (!env) {
+		warn("Invalid uevent data, size %u", len);
+		return;
+	}
+
+	schedule_event(env);
+}
+
+static void handle_udev_event(int sock)
+{
+	struct evenv *env;
+	struct udev_monitor_netlink_header *umh;
+	size_t descr;
+	size_t len;
+	size_t size = getpagesize() * 2;
+	char dbuf[size];
+	char *buf = dbuf;
+
+	memset(buf, 0, size);
+
+	len = nlsock_recv(sock, buf, size);
+	if (len < 0) {
+		warn("Failed udev uevent receive");
+		return;
+	} else if (len == 0) {
+		info("Empty udev uevent message");
+		return;
+	}
+
+	umh = (struct udev_monitor_netlink_header *)buf;
+	if (len < sizeof(*umh)) {
+		warn("Short udev uevent size: %zu", len);
+		return;
+	}
+
+	if (strcmp(umh->prefix, "libudev") || (ntohl(umh->magic) != UDEV_MONITOR_MAGIC)) {
+		warn("Invalid udev uevent format, size: %zu", len);
+		return;
+	}
+
+	debug("Received udev uevent, size %zu/%zu", size, len);
+
+	/* Skip event header. */
+	descr = sizeof(*umh);
+	len -= descr;
+	buf += descr;
+
+	env = env_init(buf, len);
+	if (!env) {
+		warn("Invalid uevent data, size %u", len);
+		return;
+	}
+
+	schedule_event(env);
+}
+
+static void handle_local_event(int sock)
 {
 	struct evenv *env;
 	size_t size;
@@ -204,7 +293,7 @@ static void handle_event(int sock)
 		return;
 	}
 
-	vinfo("Read event, size %u/%u", size, len);
+	vinfo("Read loval event, size %u/%u", size, len);
 
 	/* Clean up buffer payload */
 	strtok(buf, "\n");
@@ -215,39 +304,6 @@ static void handle_event(int sock)
 	if (!env) {
 		error("Invalid event data, size %u", len);
 		free(buf);
-		return;
-	}
-
-	schedule_event(env);
-}
-#endif
-
-static void handle_uevent(int sock)
-{
-	struct evenv *env;
-	size_t len;
-	size_t size;
-	char *buf;
-
-	size = getpagesize() * 2;
-	buf = malloc(size);
-	if (!buf)
-		die("malloc() failed");
-	memset(buf, 0, size);
-
-	len = nlsock_read(sock, buf, size);
-	if (len < 0) {
-		error("Cannot read uevent data");
-		return;
-	} else if (len == 0) {
-		return;
-	}
-
-	vinfo("Read uevent, size %u/%u", size, len);
-
-	env = env_init(buf, len);
-	if (!env) {
-		warn("Invalid uevent data, size %u", len);
 		return;
 	}
 
@@ -280,7 +336,6 @@ print_usage(void)
 		"  -n, --dry-run       No real actions.\n"
 		"  -d, --debug         Debug mode.\n"
 		"  -v, --verbose       Increase verbosity.\n"
-		"  -c, --check         Check config.\n"
 #ifdef WITH_UGID
 		"  -u, --user <name>   User name.\n"
 		"  -g, --group <name>  Group name.\n"
@@ -292,9 +347,9 @@ print_usage(void)
 static struct option long_options[] =
 {
 	{ "background",	no_argument,       0, 'b' },
-	{ "check",	no_argument,       0, 'c' },
 	{ "debug",	no_argument,       0, 'd' },
 	{ "help",	no_argument,       0, 'h' },
+	{ "kernel",	no_argument,       0, 'k' },
 	{ "dry-run",	no_argument,       0, 'n' },
 	{ "verbose",	no_argument,       0, 'v' },
 #ifdef WITH_UGID
@@ -311,19 +366,19 @@ parse_options(int argc, char *argv[])
 
 	ctx.verbosity = 2;
 
-	while ((opt = getopt_long(argc, argv, "bcdg:hnu:v", long_options, &index)) != -1) {
+	while ((opt = getopt_long(argc, argv, "bdg:hknu:v", long_options, &index)) != -1) {
 		switch(opt) {
 		case 'b':
 			ctx.daemonize = 1;
-			break;
-		case 'c':
-			ctx.check = 1;
 			break;
 		case 'd':
 			ctx.debug = 1;
 			break;
 		case 'n':
 			ctx.dryrun = 1;
+			break;
+		case 'k':
+			ctx.kevent = 1;
 			break;
 		case 'v':
 			ctx.verbosity++;
@@ -348,6 +403,7 @@ parse_options(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	int kern_feed;
 	int evsock;
 	int nlsock;
 
@@ -357,11 +413,6 @@ int main(int argc, char *argv[])
 	log_level(ctx.verbosity);
 
 	conf_load();
-
-	if (ctx.check) {
-		conf_print();
-		return 0;
-	}
 
 	if (ctx.daemonize && daemon(0, 0) == -1)
 		die("daemon() failed\n");
@@ -373,10 +424,20 @@ int main(int argc, char *argv[])
 	signal(SIGSEGV, sigterm);
 	signal(SIGQUIT, sigterm);
 
-#ifdef WITH_EVSOCK
+	if (!ctx.kevent && !access("/run/udev/control", F_OK)) {
+		debug("Subscribed to udev events");
+		kern_feed = 0;
+	} else {
+		debug("Subscribed to kobject events");
+		kern_feed = 1;
+	}
+
+	if (kern_feed)
+		nlsock = nlsock_open(UEVENT_KERNEL);
+	else
+		nlsock = nlsock_open(UEVENT_UDEV);
+
 	evsock = evsock_open();
-#endif
-	nlsock = nlsock_open();
 
 	while (!quit) {
 		struct timeval timeout = { 0, 500*1000 };
@@ -385,12 +446,11 @@ int main(int argc, char *argv[])
 
 		FD_ZERO(&rfds);
 
-#ifdef WITH_EVSOCK
-		FD_SET(evsock, &rfds);
-		maxfd = MAX(maxfd, evsock);
-#endif
 		FD_SET(nlsock, &rfds);
 		maxfd = MAX(maxfd, nlsock);
+
+		FD_SET(evsock, &rfds);
+		maxfd = MAX(maxfd, evsock);
 
 		n = select(maxfd + 1, &rfds, NULL, NULL, &timeout);
 		if (n < 0) {
@@ -400,27 +460,22 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		//if (n == 0) {
-		//	continue;
-		//}
-
-#ifdef WITH_EVSOCK
-		if (FD_ISSET(evsock, &rfds)) {
-			handle_event(evsock);
-		}
-#endif
-
 		if (FD_ISSET(nlsock, &rfds)) {
-			handle_uevent(nlsock);
+			if (kern_feed)
+				handle_kobj_event(nlsock);
+			else
+				handle_udev_event(nlsock);
+		}
+
+		if (FD_ISSET(evsock, &rfds)) {
+			handle_local_event(evsock);
 		}
 
 		process_events();
 	}
 
-#ifdef WITH_EVSOCK
-	evsock_close(evsock);
-#endif
 	nlsock_close(nlsock);
+	evsock_close(evsock);
 
 	syslog_close();
 

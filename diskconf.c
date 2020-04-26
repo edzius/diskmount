@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "util.h"
+#include "diskconf.h"
 #include "evenv.h"
 
 struct diskdef {
@@ -210,6 +211,8 @@ static int conf_load_file(const char *file_name)
 	err = ferror(fp);
 	fclose(fp);
 
+	conf_print();
+
 	return err;
 }
 
@@ -223,36 +226,6 @@ int conf_load(void)
 
 	die("No disk config found");
 	return -1;
-}
-
-void conf_print(void)
-{
-	struct diskdef *def = conf;
-
-	while (def) {
-		if (def->device) {
-			printf("DEV = %s\t\t", def->device);
-		} else if (def->serial) {
-			printf("SERIAL = %s\t\t", def->serial);
-		} else if (def->fs_label) {
-			printf("LABEL = %s\t\t", def->fs_label);
-		} else if (def->fs_uuid) {
-			printf("UUID = %s\t\t", def->fs_uuid);
-		} else if (def->part_uuid) {
-			printf("PARTUUID = %s\t\t", def->part_uuid);
-		}
-
-		if (def->mount_point)
-			printf("%s\t\t", def->mount_point);
-		if (def->mount_fs)
-			printf("%s\t\t", def->mount_fs);
-		if (def->mount_opts)
-			printf("%s\t\t", def->mount_opts);
-
-		printf("\n");
-
-		def = def->next;
-	}
 }
 
 int conf_find(struct evenv *env, char **mpoint, char **mfs, char **mopts)
@@ -305,4 +278,39 @@ int conf_find(struct evenv *env, char **mpoint, char **mfs, char **mopts)
 		*mopts = def->mount_opts;
 
 	return 0;
+}
+
+void conf_print(void)
+{
+	struct diskdef *def = conf;
+	char buffer[128];
+	int total = sizeof(buffer);
+	int size = 0;
+
+	debug("Loaded config:");
+
+	while (def) {
+		if (def->device) {
+			size += snprintf(buffer, total - size, "DEV = %s\t\t", def->device);
+		} else if (def->serial) {
+			size += snprintf(buffer, total - size, "SERIAL = %s\t\t", def->serial);
+		} else if (def->fs_label) {
+			size += snprintf(buffer, total - size, "LABEL = %s\t\t", def->fs_label);
+		} else if (def->fs_uuid) {
+			size += snprintf(buffer, total - size, "UUID = %s\t\t", def->fs_uuid);
+		} else if (def->part_uuid) {
+			size += snprintf(buffer, total - size, "PARTUUID = %s\t\t", def->part_uuid);
+		}
+
+		if (def->mount_point)
+			size += snprintf(buffer, total - size, "%s\t\t", def->mount_point);
+		if (def->mount_fs)
+			size += snprintf(buffer, total - size, "%s\t\t", def->mount_fs);
+		if (def->mount_opts)
+			size += snprintf(buffer, total - size, "%s\t\t", def->mount_opts);
+
+		debug("%s", buffer);
+
+		def = def->next;
+	}
 }

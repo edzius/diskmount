@@ -64,7 +64,9 @@ struct evenv *env_init(char *data, int size)
 		die("malloc() failed");
 	memset(env, 0, sizeof(*env));
 
-	env->data = data;
+	env->data = malloc(size + 1);
+	env->data[size] = '\0';
+	memcpy(env->data, data, size);
 
 	cur = data;
 	end = data + size;
