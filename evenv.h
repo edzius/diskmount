@@ -13,7 +13,7 @@ struct evenv {
 	struct kv *list;
 };
 
-struct evenv *env_init(char *data);
+struct evenv *env_init(char *data, int size);
 void env_free(struct evenv *env);
 char *env_lookup(struct evenv *env, const char *prop);
 

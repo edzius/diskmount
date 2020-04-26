@@ -1,16 +1,44 @@
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include "util.h"
 
 static int level = LL_INFO;
 static int use_verbose;
 static int use_syslog;
+
+void set_coe(int fd)
+{
+        int  result;
+        long oflags;
+
+	vdebug("Setting COE on socket %u", fd);
+
+        oflags = fcntl(fd, F_GETFD);
+        result = fcntl(fd, F_SETFD, oflags | FD_CLOEXEC);
+        if (result < 0)
+                die("cannot set FD_CLOEXEC flag.\n");
+}
+
+void set_nio(int fd)
+{
+        int  result;
+        long oflags;
+
+	vdebug("Setting NIO on socket %u", fd);
+
+        oflags = fcntl(fd, F_GETFL);
+        result = fcntl(fd, F_SETFL, oflags | O_NONBLOCK);
+        if (result < 0)
+                die("cannot set O_NONBLOCK flags.\n");
+}
 
 void __noreturn die(const char *format, ... )
 {

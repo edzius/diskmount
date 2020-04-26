@@ -18,6 +18,7 @@
 
 #include "util.h"
 #include "diskconf.h"
+#include "nlsock.h"
 #include "evsock.h"
 #include "evenv.h"
 #include "evqueue.h"
@@ -137,20 +138,32 @@ static int validate_event(struct evenv *env)
 	return 0;
 }
 
-static int schedule_event(struct evenv *env)
+static void schedule_event(struct evenv *env)
 {
 	struct evenv *last;
 
+	if (ctx.dryrun) {
+		int i;
+
+		printf("Received event:\n");
+		printf("---------------\n");
+		for (i = 0; i < env->count; i++) {
+			printf("%s = %s\n", env->list[i].key, env->list[i].val);
+		}
+		printf("==============\n");
+	}
+
 	if (validate_event(env)) {
 		warn("Invalid event params, skipping");
-		return -1;
+		env_free(env);
+		return;
 	}
 
 	last = evq_peek(env);
 	if (!last) {
 		debug("Scheduling new event");
 		evq_add(env, EV_SCHED_TIME);
-		return 0;
+		return;
 	}
 
 	/* Implies add or remove action. */
@@ -162,9 +175,10 @@ static int schedule_event(struct evenv *env)
 		/* Shall we refresh event time stamp? */
 	}
 
-	return 1;
+	env_free(env);
 }
 
+#ifdef WITH_EVSOCK
 static void handle_event(int sock)
 {
 	struct evenv *env;
@@ -192,26 +206,52 @@ static void handle_event(int sock)
 
 	vinfo("Read event, size %u/%u", size, len);
 
-	env = env_init(buf);
+	/* Clean up buffer payload */
+	strtok(buf, "\n");
+	while (strtok(NULL, "\n"))
+		;
+
+	env = env_init(buf, len);
 	if (!env) {
-		error("Invalid event data, size %u", size);
+		error("Invalid event data, size %u", len);
 		free(buf);
 		return;
 	}
 
-	if (ctx.dryrun) {
-		int i;
+	schedule_event(env);
+}
+#endif
 
-		printf("Received event:\n");
-		printf("---------------\n");
-		for (i = 0; i < env->count; i++) {
-			printf("%s = %s\n", env->list[i].key, env->list[i].val);
-		}
-		printf("==============\n");
+static void handle_uevent(int sock)
+{
+	struct evenv *env;
+	size_t len;
+	size_t size;
+	char *buf;
+
+	size = getpagesize() * 2;
+	buf = malloc(size);
+	if (!buf)
+		die("malloc() failed");
+	memset(buf, 0, size);
+
+	len = nlsock_read(sock, buf, size);
+	if (len < 0) {
+		error("Cannot read uevent data");
+		return;
+	} else if (len == 0) {
+		return;
 	}
 
-	if (schedule_event(env))
-		env_free(env);
+	vinfo("Read uevent, size %u/%u", size, len);
+
+	env = env_init(buf, len);
+	if (!env) {
+		warn("Invalid uevent data, size %u", len);
+		return;
+	}
+
+	schedule_event(env);
 }
 
 #ifdef WITH_UGID
@@ -309,6 +349,7 @@ parse_options(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 	int evsock;
+	int nlsock;
 
 	parse_options(argc, argv);
 
@@ -335,6 +376,7 @@ int main(int argc, char *argv[])
 #ifdef WITH_EVSOCK
 	evsock = evsock_open();
 #endif
+	nlsock = nlsock_open();
 
 	while (!quit) {
 		struct timeval timeout = { 0, 500*1000 };
@@ -347,6 +389,8 @@ int main(int argc, char *argv[])
 		FD_SET(evsock, &rfds);
 		maxfd = MAX(maxfd, evsock);
 #endif
+		FD_SET(nlsock, &rfds);
+		maxfd = MAX(maxfd, nlsock);
 
 		n = select(maxfd + 1, &rfds, NULL, NULL, &timeout);
 		if (n < 0) {
@@ -366,12 +410,17 @@ int main(int argc, char *argv[])
 		}
 #endif
 
+		if (FD_ISSET(nlsock, &rfds)) {
+			handle_uevent(nlsock);
+		}
+
 		process_events();
 	}
 
 #ifdef WITH_EVSOCK
 	evsock_close(evsock);
 #endif
+	nlsock_close(nlsock);
 
 	syslog_close();
 

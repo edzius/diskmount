@@ -1,6 +1,5 @@
 
 #include <errno.h>
-#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -15,32 +14,6 @@
 #endif
 
 #define SOCKET_FILE RUN_PATH"diskmount.sock"
-
-static void set_coe(int fd)
-{
-        int  result;
-        long oflags;
-
-	vdebug("Setting COE on socket %u", fd);
-
-        oflags = fcntl(fd, F_GETFD);
-        result = fcntl(fd, F_SETFD, oflags | FD_CLOEXEC);
-        if (result < 0)
-                die("cannot set FD_CLOEXEC flag.\n");
-}
-
-static void set_nio(int fd)
-{
-        int  result;
-        long oflags;
-
-	vdebug("Setting NIO on socket %u", fd);
-
-        oflags = fcntl(fd, F_GETFL);
-        result = fcntl(fd, F_SETFL, oflags | O_NONBLOCK);
-        if (result < 0)
-                die("cannot set O_NONBLOCK flags.\n");
-}
 
 int evsock_open(void)
 {
@@ -59,7 +32,7 @@ int evsock_open(void)
 	if ((sock = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0)
 		die("socket(AF_UNIX) failed");
 
-	vdebug("Opened socket %u at '%s'", sock, SOCKET_FILE);
+	vdebug("Opened event socket %u at '%s'", sock, SOCKET_FILE);
 
 	set_nio(sock);
 	set_coe(sock);
@@ -74,7 +47,7 @@ void evsock_close(int sock)
 {
 	close(sock);
 	unlink(SOCKET_FILE);
-	vdebug("Closed socket %u", sock);
+	vdebug("Closed event socket %u", sock);
 }
 
 int evsock_connect(void)
@@ -91,7 +64,7 @@ int evsock_connect(void)
 	if ((sock = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0)
 		die("socket(AF_UNIX) failed");
 
-	vdebug("Opened socket %u at '%s'", sock, SOCKET_FILE);
+	vdebug("Opened event socket %u at '%s'", sock, SOCKET_FILE);
 
 	set_nio(sock);
 	set_coe(sock);
@@ -105,7 +78,7 @@ int evsock_connect(void)
 void evsock_disconnect(int sock)
 {
 	close(sock);
-	vdebug("Closed socket %u", sock);
+	vdebug("Closed event socket %u", sock);
 }
 
 int evsock_read(int sock, char *buf, size_t *len)

@@ -48,11 +48,11 @@ static int env_append(struct evenv *env, char *line)
 	return 0;
 }
 
-struct evenv *env_init(char *data)
+struct evenv *env_init(char *data, int size)
 {
 	struct evenv *env;
-	char *token;
-	const char *sep = "\n";
+	char *cur, *end;
+	int cnt;
 
 	if (!data) {
 		debug("Missing ENV data");
@@ -66,10 +66,15 @@ struct evenv *env_init(char *data)
 
 	env->data = data;
 
-	token = strtok(data, sep);
-	while (token != NULL) {
-		env_append(env, token);
-		token = strtok(NULL, sep);
+	cur = data;
+	end = data + size;
+	while (cur < end) {
+		cnt = strlen(cur);
+		if (cnt <= 0)
+			break;
+
+		env_append(env, cur);
+		cur += cnt + 1;
 	}
 
 	vinfo("Initialized ENV data: %p", env);

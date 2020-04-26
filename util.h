@@ -25,7 +25,11 @@
 #define vwarn(fmt, ...) log_verbose(LL_WARN, fmt, ## __VA_ARGS__)
 #define verror(fmt, ...) log_verbose(LL_ERROR, fmt, ## __VA_ARGS__)
 
+void set_coe(int fd);
+void set_nio(int fd);
+
 void __noreturn die(const char *msg, ...) __print_format(1, 2);
+
 void log_print(int lvl, char *fmt, ...) __print_format(2, 3);
 void log_level(int lvl);
 void log_verbose(int lvl, char *fmt, ...) __print_format(2, 3);
