@@ -97,7 +97,7 @@ int evsock_connect(void)
 	set_coe(sock);
 
 	if (connect(sock, (struct sockaddr *)&srv_addr, srv_len) < 0)
-		die("connectt(%s) failed", SOCKET_FILE);
+		die("connect(%s) failed", SOCKET_FILE);
 
 	return sock;
 }
@@ -124,12 +124,12 @@ int evsock_read(int sock, char *buf, size_t *len)
 			if (errno == EAGAIN)
 				break;
 			error("failed receive on socket %i, err: %s (%i)\n",
-			     sock, strerror(errno), errno);
+			      sock, strerror(errno), errno);
 			return -1;
 		} else if (cnt == 0) {
 			if (*len != 0)
 				break;
-			debug("recv: socket %i finished, closing\n", sock);
+			debug("empty response on socket %i, closing\n", sock);
 			close(sock);
 			return -1;
 		}
@@ -156,13 +156,13 @@ int evsock_write(int sock, char *buf, size_t len)
 				/* WUH? */
 				continue;
 			warn("failed send on socket %i, cnt %zu/%zu err: %s (%i)\n",
-				 sock, len, sent, strerror(errno), errno);
+			     sock, len, sent, strerror(errno), errno);
 			close(sock);
 			return -1;
 		} else if (cnt == 0) {
 			if (sent != 0)
 				break;
-			debug("send: socket %i finished, closing\n", sock);
+			debug("cannot send on socket %i, closing\n", sock);
 			close(sock);
 			return -1;
 		}

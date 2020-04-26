@@ -308,7 +308,7 @@ parse_options(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	int sock;
+	int evsock;
 
 	parse_options(argc, argv);
 
@@ -332,7 +332,9 @@ int main(int argc, char *argv[])
 	signal(SIGSEGV, sigterm);
 	signal(SIGQUIT, sigterm);
 
-	sock = evsock_open();
+#ifdef WITH_EVSOCK
+	evsock = evsock_open();
+#endif
 
 	while (!quit) {
 		struct timeval timeout = { 0, 500*1000 };
@@ -341,8 +343,10 @@ int main(int argc, char *argv[])
 
 		FD_ZERO(&rfds);
 
-		FD_SET(sock, &rfds);
-		maxfd = MAX(maxfd, sock);
+#ifdef WITH_EVSOCK
+		FD_SET(evsock, &rfds);
+		maxfd = MAX(maxfd, evsock);
+#endif
 
 		n = select(maxfd + 1, &rfds, NULL, NULL, &timeout);
 		if (n < 0) {
@@ -356,14 +360,18 @@ int main(int argc, char *argv[])
 		//	continue;
 		//}
 
-		if (FD_ISSET(sock, &rfds)) {
-			handle_event(sock);
+#ifdef WITH_EVSOCK
+		if (FD_ISSET(evsock, &rfds)) {
+			handle_event(evsock);
 		}
+#endif
 
 		process_events();
 	}
 
-	evsock_close(sock);
+#ifdef WITH_EVSOCK
+	evsock_close(evsock);
+#endif
 
 	syslog_close();
 
