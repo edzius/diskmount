@@ -219,7 +219,6 @@ static int evev_build_part(char *data, int type, char *line)
 
 int evev_build(char *data, int size, struct diskev *evt)
 {
-	char *zero = "";
 	char *last = data + size;
 
 	data += evev_build_part(data, EVTYPE_ACTION, evt->action);

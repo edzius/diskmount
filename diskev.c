@@ -20,7 +20,7 @@ void ev_insert(struct diskev *evt, off_t delay)
 	memcpy(tmp, evt, sizeof(*tmp));
 	tmp->ts = time(NULL) + delay;
 	list_add_tail(&tmp->list, &event_queue);
-	vinfo("Scheduled event: %p, time %u", tmp, tmp->ts);
+	vinfo("Scheduled event: %p, time %li", tmp, tmp->ts);
 }
 
 void ev_remove(struct diskev *evt)
@@ -40,7 +40,7 @@ struct diskev *ev_next(void)
 	ts = time(NULL);
 
 	list_for_each_entry_safe(tmp, n, &event_queue, list) {
-		vdebug("Checking event %p, time %u/%u", tmp, tmp->ts, ts);
+		vdebug("Checking event %p, time %li/%li", tmp, tmp->ts, ts);
 		if (tmp->ts <= ts) {
 			evt = tmp;
 			break;
@@ -48,11 +48,11 @@ struct diskev *ev_next(void)
 	}
 
 	if (!evt) {
-		vdebug("No scheduled events, time %u", ts);
+		vdebug("No scheduled events, time %li", ts);
 		return NULL;
 	}
 
-	vinfo("Popping event: %p, time %u", evt, ts);
+	vinfo("Popping event: %p, time %li", evt, ts);
 	list_del(&evt->list);
 	return evt;
 }

@@ -7,10 +7,6 @@
 #include "diskev.h"
 #include "evsock.h"
 
-static char *buf = NULL;
-static int size = 0;
-static int used = 0;
-
 static void update(struct diskev *evt, char *line)
 {
 	char *pos;
@@ -52,7 +48,6 @@ int main(int argc, char *argv[])
 {
 	char **env;
 	int sock;
-	size_t len;
 	size_t size = getpagesize() * 2;
 	char dbuf[size];
 	char *buf = dbuf;
@@ -86,7 +81,7 @@ int main(int argc, char *argv[])
 	if (!ev->length)
 		die("Failed to build event");
 
-	vinfo("Sending event, size %u", ev->length + sizeof(*ev));
+	vinfo("Sending event, size %zu", ev->length + sizeof(*ev));
 
 	if (evsock_write(sock, (char *)&magic, sizeof(magic)))
 		die("Cannot write event magic");

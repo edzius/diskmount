@@ -255,15 +255,15 @@ static void handle_local_event(int sock)
 
 	evh = (struct evtlv *)buf;
 	if (evh->type != EVTYPE_GROUP || evh->length != (len - sizeof(*evh))) {
-		error("Invalid event header, type %i, size %i/%i",
+		error("Invalid event header, type %i, size %u/%zu",
 		      evh->type, evh->length, len);
 		return;
 	}
 
-	debug("Read local event, size %u/%u", evh->length, len);
+	debug("Read local event, size %u/%zu", evh->length, len);
 
 	if (evev_parse(&evt, evh->value, evh->length)) {
-		warn("Invalid event message, size %zu", evh->length);
+		warn("Invalid event message, size %u", evh->length);
 		return;
 	}
 

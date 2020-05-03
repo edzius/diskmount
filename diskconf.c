@@ -113,7 +113,7 @@ static int conf_update_opt(struct diskdef *def, char *src)
 static int conf_check_comment(char *line)
 {
 	while (*line == ' ') {
-		*line++;
+		line++;
 	}
 	return *line == '#';
 }
@@ -167,8 +167,6 @@ fail:
 static int conf_parse_chunk(char *data, int len)
 {
 	char *pos;
-	char *end;
-	char *base = data;
 
 	vdebug("Processing data chunk, size: '%u'", len);
 
