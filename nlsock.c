@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 
 #include "util.h"
+#include "diskev.h"
 
 #define NL_SOCKET_BUFSZ		32768
 
@@ -103,4 +104,74 @@ int nlsock_recv(int sock, char *buf, size_t len)
 	}
 
 	return size;
+}
+
+static int nlev_update_part(struct diskev *evt, char *line)
+{
+	char *pos;
+
+	vdebug("Processing ENV line: '%s'", line);
+
+	pos = strchr(line, '=');
+	if (!pos) {
+		vwarn("Anomalous EVN parameter: '%s'", line);
+		return -1;
+	}
+	*pos = '\0';
+	pos++;
+
+	if (!strcmp(line, "ACTION")) {
+		evt->action = strdup(pos);
+	} else if (!strcmp(line, "SUBSYSTEM")) {
+		evt->subsys = strdup(pos);
+	} else if (!strcmp(line, "DEVTYPE")) {
+		evt->type = strdup(pos);
+	} else if (!strcmp(line, "DEVNAME")) {
+		evt->device = strdup(pos);
+	} else if (!strcmp(line, "ID_FS_TYPE")) {
+		evt->filesys = strdup(pos);
+	} else if (!strcmp(line, "ID_SERIAL_SHORT")) {
+		evt->serial = strdup(pos);
+	} else if (!strcmp(line, "ID_FS_LABEL")) {
+		evt->label = strdup(pos);
+	} else if (!strcmp(line, "ID_FS_UUID")) {
+		evt->fsuuid = strdup(pos);
+	} else if (!strcmp(line, "ID_PART_ENTRY_UUID")) {
+		evt->partuuid = strdup(pos);
+	} else {
+		return 1;
+	}
+
+	vinfo("Included ENV param: '%s' = '%s'", line, pos);
+
+	return 0;
+}
+
+int nlev_parse(struct diskev *evt, char *data, int size)
+{
+	char *cur, *end;
+	int cnt;
+
+	memset(evt, 0, sizeof(*evt));
+
+	cur = data;
+	end = data + size;
+	while (cur < end) {
+		cnt = strlen(cur);
+		if (cnt <= 0)
+			break;
+
+		nlev_update_part(evt, cur);
+		cur += cnt + 1;
+	}
+
+	if (ev_check(evt)) {
+		verror("Invalid event parameters, size %u", size);
+		ev_free(evt);
+		return 1;
+	}
+
+	vinfo("Processed event, size %u", size);
+
+	return 0;
 }

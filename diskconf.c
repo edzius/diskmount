@@ -5,7 +5,7 @@
 
 #include "util.h"
 #include "diskconf.h"
-#include "evenv.h"
+#include "diskev.h"
 
 struct diskdef {
 	char *device;
@@ -228,33 +228,25 @@ int conf_load(void)
 	return -1;
 }
 
-int conf_find(struct evenv *env, char **mpoint, char **mfs, char **mopts)
+int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 {
-	int i;
-	char *val, *dev;
 	struct diskdef *def = conf;
-
-	dev = env_lookup(env, "DEVNAME");
 
 	while (def) {
 		if (def->device) {
-			if (dev && !strcmp(def->device, dev))
+			if (evt->device && !strcmp(def->device, evt->device))
 				break;
 		} else if (def->serial) {
-			val = env_lookup(env, "ID_SERIAL_SHORT");
-			if (val && !strcmp(def->serial, val))
+			if (evt->serial && !strcmp(def->serial, evt->serial))
 				break;
 		} else if (def->fs_label) {
-			val = env_lookup(env, "ID_FS_LABEL");
-			if (val && !strcmp(def->fs_label, val))
+			if (evt->label && !strcmp(def->fs_label, evt->label))
 				break;
 		} else if (def->fs_uuid) {
-			val = env_lookup(env, "ID_FS_UUID");
-			if (val && !strcmp(def->fs_uuid, val))
+			if (evt->fsuuid && !strcmp(def->fs_uuid, evt->fsuuid))
 				break;
 		} else if (def->part_uuid) {
-			val = env_lookup(env, "ID_PART_ENTRY_UUID");
-			if (val && !strcmp(def->part_uuid, val))
+			if (evt->partuuid && !strcmp(def->part_uuid, evt->partuuid))
 				break;
 		}
 
@@ -266,7 +258,8 @@ int conf_find(struct evenv *env, char **mpoint, char **mfs, char **mopts)
 	*mopts = '\0';
 
 	if (!def) {
-		vwarn("No mount config for device: '%s'", dev ? dev : "N/A");
+		vwarn("No mount config for device: '%s'",
+		      evt->device ? evt->device : "N/A");
 		return 1;
 	}
 

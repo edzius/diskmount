@@ -19,10 +19,9 @@
 
 #include "util.h"
 #include "diskconf.h"
+#include "diskev.h"
 #include "nlsock.h"
 #include "evsock.h"
-#include "evenv.h"
-#include "evqueue.h"
 
 #define EV_SCHED_TIME 1
 
@@ -47,27 +46,27 @@ static void sigterm(int signo)
 	quit = 1;
 }
 
-static void process_mount(struct evenv *env)
+static void process_mount(struct diskev *evt)
 {
 	char *point, *fs, *opts;
-	char *action;
 	char *device;
 
-	if (conf_find(env, &point, &fs, &opts)) {
-		debug("No mount point found");
+	vdebug("Processing mount event: '%s'", evt->device);
+
+	if (conf_find(evt, &point, &fs, &opts)) {
+		debug("Skip mount, no confiured mount: '%s'", evt->device);
 		return;
 	}
 
-	device = env_lookup(env, "DEVNAME");
+	device = evt->device;
 	if (!fs)
-		fs = env_lookup(env, "ID_FS_TYPE");
+		fs = evt->filesys;
 	if (!fs) {
-		error("Cannot mount, no file system");
+		error("Skip mount, unknown file system: '%s'", evt->device);
 		return;
 	}
 
-	action = env_lookup(env, "ACTION");
-	if (!strcmp(action, "add")) {
+	if (!strcmp(evt->action, "add")) {
 		if (ctx.dryrun) {
 			printf("Mounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
 			printf("\n");
@@ -86,7 +85,7 @@ static void process_mount(struct evenv *env)
 		if (mount(device, point, fs, MS_NOATIME, opts))
 			error("Failed to mount '%s' to '%s', type '%s', opts '%s': %u (%s)",
 			      device, point, fs, opts, errno, strerror(errno));
-	} else if (!strcmp(action, "remove")) {
+	} else if (!strcmp(evt->action, "remove")) {
 		if (ctx.dryrun) {
 			printf("Unmounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
 			printf("\n");
@@ -100,88 +99,49 @@ static void process_mount(struct evenv *env)
 			      device, point, errno, strerror(errno));
 	} else {
 		warn("Unknown event '%s' mounting '%s' -> '%s' (%s, %s)",
-		     action, device, point, fs, opts);
+		     evt->action, device, point, fs, opts);
 	}
 }
 
 static void process_events(void)
 {
-	struct evenv *env;
+	struct diskev *tmp;
 
-	while ((env = evq_pop())) {
-		vdebug("Processing event queue entry");
+	while ((tmp = ev_next())) {
+		process_mount(tmp);
 
-		process_mount(env);
-
-		env_free(env);
+		ev_free(tmp);
+		free(tmp);
 	}
 }
 
-static int validate_event(struct evenv *env)
+static void schedule_event(struct diskev *evt)
 {
-	char *subsys, *devtype, *action, *device;
+	struct diskev *tmp;
 
-	action = env_lookup(env, "ACTION");
-	subsys = env_lookup(env, "SUBSYSTEM");
-	devtype = env_lookup(env, "DEVTYPE");
-	device = env_lookup(env, "DEVNAME");
-	if (!subsys || !devtype || !device || !action) {
-		verror("Missing event params SUBSYSTEM/DEVTYPE");
-		return 1;
-	}
-
-	if (strcmp(subsys, "block") ||
-	    strcmp(devtype, "partition")) {
-		verror("Incorrect event params, SUBSYSTEM %s, DEVTYPE %s", subsys, devtype);
-		return 1;
-	}
-
-	return 0;
-}
-
-static void schedule_event(struct evenv *env)
-{
-	struct evenv *last;
-
-	if (ctx.dryrun) {
-		int i;
-
-		printf("Received event:\n");
-		printf("---------------\n");
-		for (i = 0; i < env->count; i++) {
-			printf("%s = %s\n", env->list[i].key, env->list[i].val);
-		}
-		printf("==============\n");
-	}
-
-	if (validate_event(env)) {
-		warn("Invalid event params, skipping");
-		env_free(env);
-		return;
-	}
-
-	last = evq_peek(env);
-	if (!last) {
+	tmp = ev_find(evt);
+	if (!tmp) {
 		debug("Scheduling new event");
-		evq_add(env, EV_SCHED_TIME);
+		ev_insert(evt, EV_SCHED_TIME);
 		return;
 	}
 
 	/* Implies add or remove action. */
-	if (strcmp(env_lookup(env, "ACTION"), env_lookup(last, "ACTION"))) {
-		debug("Inverted event already in queue, removing");
-		evq_del(last);
+	if (strcmp(evt->action, tmp->action)) {
+		debug("Inverse event already in queue, removing");
+		ev_remove(tmp);
+		return;
 	} else {
 		debug("Similar event already in queue, ignoring");
 		/* Shall we refresh event time stamp? */
 	}
 
-	env_free(env);
+	ev_free(evt);
 }
 
 static void handle_kobj_event(int sock)
 {
-	struct evenv *env;
+	struct diskev evt;
 	size_t descr;
 	size_t len;
 	size_t size = getpagesize() * 2;
@@ -211,18 +171,17 @@ static void handle_kobj_event(int sock)
 	len -= descr;
 	buf += descr;
 
-	env = env_init(buf, len);
-	if (!env) {
-		warn("Invalid uevent data, size %u", len);
+	if (nlev_parse(&evt, buf, len)) {
+		warn("Invalid kobject uevent message, size %zu", len);
 		return;
 	}
 
-	schedule_event(env);
+	schedule_event(&evt);
 }
 
 static void handle_udev_event(int sock)
 {
-	struct evenv *env;
+	struct diskev evt;
 	struct udev_monitor_netlink_header *umh;
 	size_t descr;
 	size_t len;
@@ -259,55 +218,56 @@ static void handle_udev_event(int sock)
 	len -= descr;
 	buf += descr;
 
-	env = env_init(buf, len);
-	if (!env) {
-		warn("Invalid uevent data, size %u", len);
+	if (nlev_parse(&evt, buf, len)) {
+		warn("Invalid udev uevent message, size %zu", len);
 		return;
 	}
 
-	schedule_event(env);
+	schedule_event(&evt);
 }
 
 static void handle_local_event(int sock)
 {
-	struct evenv *env;
-	size_t size;
+	struct diskev evt;
+	struct evtlv *evh;
+	int magic;
 	size_t len;
-	char *buf;
+	size_t size = getpagesize() * 2;
+	char dbuf[size];
+	char *buf = dbuf;
 
-	len = sizeof(size);
-	if (evsock_read(sock, (char *)&size, &len)) {
-		error("Cannot read event size");
+	len = sizeof(magic);
+	if (evsock_read(sock, (char *)&magic, &len)) {
+		error("Failed event magic receive");
 		return;
 	}
 
-	buf = malloc(size);
-	if (!buf)
-		die("malloc() failed");
-	memset(buf, 0, size);
+	if (magic != EVHEAD_MAGIC) {
+		info("Invalid event magic");
+		return;
+	}
 
 	len = size;
 	if (evsock_read(sock, buf, &len)) {
-		error("Cannot read event content");
-		free(buf);
+		error("Failed event header receive");
 		return;
 	}
 
-	vinfo("Read loval event, size %u/%u", size, len);
-
-	/* Clean up buffer payload */
-	strtok(buf, "\n");
-	while (strtok(NULL, "\n"))
-		;
-
-	env = env_init(buf, len);
-	if (!env) {
-		error("Invalid event data, size %u", len);
-		free(buf);
+	evh = (struct evtlv *)buf;
+	if (evh->type != EVTYPE_GROUP || evh->length != (len - sizeof(*evh))) {
+		error("Invalid event header, type %i, size %i/%i",
+		      evh->type, evh->length, len);
 		return;
 	}
 
-	schedule_event(env);
+	debug("Read local event, size %u/%u", evh->length, len);
+
+	if (evev_parse(&evt, evh->value, evh->length)) {
+		warn("Invalid event message, size %zu", evh->length);
+		return;
+	}
+
+	schedule_event(&evt);
 }
 
 #ifdef WITH_UGID

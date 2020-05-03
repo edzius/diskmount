@@ -8,6 +8,8 @@
 #include <sys/un.h>
 
 #include "util.h"
+#include "diskev.h"
+#include "evsock.h"
 
 #ifndef RUN_PATH
 #define RUN_PATH "/var/run/"
@@ -110,7 +112,7 @@ int evsock_read(int sock, char *buf, size_t *len)
 		*len += cnt;
 	}
 
-	//trace("recv: socket %i; len %zu", sock, *len);
+	vdebug("recv data: socket %i, len %zu", sock, *len);
 
 	return 0;
 }
@@ -143,7 +145,107 @@ int evsock_write(int sock, char *buf, size_t len)
 		sent += cnt;
 	}
 
-	//trace("send: socket %i; cnt %zu/%zu", sock, len, sent);
+	vdebug("sent data: socket %i, cnt %zu/%zu", sock, len, sent);
 
 	return 0;
+}
+
+int evev_parse(struct diskev *evt, char *data, int size)
+{
+	struct evtlv *tlv;
+	int seek = 0;
+
+	memset(evt, 0, sizeof(*evt));
+
+	while (seek < size) {
+		tlv = (struct evtlv *)data;
+		seek += tlv->length + sizeof(*tlv);
+		data += tlv->length + sizeof(*tlv);
+		if (tlv->type == EVTYPE_DONE || tlv->length == 0 || seek > size)
+			break;
+
+		if (tlv->type == EVTYPE_ACTION)
+			evt->action = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_DEVICE)
+			evt->device = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_FS)
+			evt->filesys = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_LABEL)
+			evt->label = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_SERIAL)
+			evt->serial = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_FSUUID)
+			evt->fsuuid = strndup(tlv->value, tlv->length);
+		else if (tlv->type == EVTYPE_PARTUUID)
+			evt->partuuid = strndup(tlv->value, tlv->length);
+		else
+			vwarn("Unknown event IE type %u, length %u",
+			      tlv->type, tlv->length);
+	}
+
+	/* We are sure event is for correct
+	 * subsystem and device type, thus
+	 * just forge them here. */
+	evt->subsys = strdup("block");
+	evt->type = strdup("partition");
+
+	if (ev_check(evt)) {
+		verror("Invalid event, size %u", size);
+		ev_free(evt);
+		return 1;
+	}
+
+	vinfo("Processed event, size %u", size);
+
+	return 0;
+}
+
+static int evev_build_part(char *data, int type, char *line)
+{
+	struct evtlv *tlv;
+
+	if (!line && type != EVTYPE_DONE)
+		return 0;
+
+	tlv = (struct evtlv *)data;
+	tlv->type = type;
+	tlv->length = 0;
+	if (line)
+		/* TLV size includes data (incl \0) and header length */
+		tlv->length = sprintf(tlv->value, "%s", line) + 1;
+
+	return tlv->length + sizeof(*tlv);
+}
+
+int evev_build(char *data, int size, struct diskev *evt)
+{
+	char *zero = "";
+	char *last = data + size;
+
+	data += evev_build_part(data, EVTYPE_ACTION, evt->action);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_DEVICE, evt->device);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_FS, evt->filesys);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_LABEL, evt->label);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_SERIAL, evt->serial);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_FSUUID, evt->fsuuid);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_PARTUUID, evt->partuuid);
+	if (data >= last)
+		return 0;
+	data += evev_build_part(data, EVTYPE_DONE, NULL);
+	if (data >= last)
+		return 0;
+
+	return size - (last - data);
 }

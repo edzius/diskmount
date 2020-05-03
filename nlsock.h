@@ -1,6 +1,8 @@
 #ifndef _NLSOCK_H
 #define _NLSOCK_H
 
+#include "diskev.h"
+
 #define UEVENT_KERNEL 1
 #define UEVENT_UDEV 2
 
@@ -32,5 +34,6 @@ struct udev_monitor_netlink_header {
 int nlsock_open(int subscribe);
 void nlsock_close(int sock);
 int nlsock_recv(int sock, char *buf, size_t len);
+int nlev_parse(struct diskev *evt, char *data, int size);
 
 #endif // _NLSOCK_H

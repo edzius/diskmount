@@ -3,45 +3,97 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "evsock.h"
 #include "util.h"
+#include "diskev.h"
+#include "evsock.h"
 
 static char *buf = NULL;
 static int size = 0;
 static int used = 0;
 
-static void append(char *line)
+static void update(struct diskev *evt, char *line)
 {
-	int len = strlen(line) + 1;
+	char *pos;
+	char *val;
 
-	if (size > used + len)
-		goto insert;
+	pos = strchr(line, '=');
+	if (!pos)
+		return;
+	val = pos + 1;
 
-	size += MAX(len, 1024);
-	buf = realloc(buf, size);
-	if (!buf)
-		die("realloc() failed");
+	if (!strncmp(line, "ACTION", pos - line)) {
+		evt->action = val;
+	} else if (!strncmp(line, "SUBSYSTEM", pos - line)) {
+		evt->subsys = val;
+	} else if (!strncmp(line, "DEVTYPE", pos - line)) {
+		evt->type = val;
+	} else if (!strncmp(line, "DEVNAME", pos - line)) {
+		evt->device = val;
+	} else if (!strncmp(line, "ID_FS_TYPE", pos - line)) {
+		evt->filesys = val;
+	} else if (!strncmp(line, "ID_SERIAL_SHORT", pos - line)) {
+		evt->serial = val;
+	} else if (!strncmp(line, "ID_FS_LABEL", pos - line)) {
+		evt->label = val;
+	} else if (!strncmp(line, "ID_FS_UUID", pos - line)) {
+		evt->fsuuid = val;
+	} else if (!strncmp(line, "ID_PART_ENTRY_UUID", pos - line)) {
+		evt->partuuid = val;
+	} else {
+		return;
+	}
 
-insert:
-	used += sprintf(buf + used, "%s\n", line);
+	vinfo("Added parameter line '%s'", line);
+
+	return;
 }
 
 int main(int argc, char *argv[])
 {
 	char **env;
-	int evsock;
+	int sock;
+	size_t len;
+	size_t size = getpagesize() * 2;
+	char dbuf[size];
+	char *buf = dbuf;
+	struct evtlv *ev;
+	struct diskev evt;
+	int magic = EVHEAD_MAGIC;
 
-	evsock = evsock_connect();
+	if (argc > 1 && !strcmp(argv[1], "-d")) {
+		log_debug(1);
+		log_level(LL_DEBUG);
+	}
+
+	memset(&evt, 0, sizeof(evt));
+
+	sock = evsock_connect();
 
 	for (env = environ; *env; ++env)
-		append(*env);
+		update(&evt, *env);
 
-	if (evsock_write(evsock, (char *)&used, sizeof(used)))
-		die("Cannot write event size\n");
-	if (evsock_write(evsock, buf, used))
-		die("Cannot write event content\n");
+	if (!evt.subsys)
+		evt.subsys = "block";
+	if (!evt.type)
+		evt.type = "partition";
 
-	evsock_disconnect(evsock);
+	if (ev_check(&evt))
+		die("Invalid event params");
+
+	ev = (struct evtlv *)buf;
+	ev->type = EVTYPE_GROUP;
+	ev->length = evev_build(buf + sizeof(*ev), size - sizeof(*ev), &evt);
+	if (!ev->length)
+		die("Failed to build event");
+
+	vinfo("Sending event, size %u", ev->length + sizeof(*ev));
+
+	if (evsock_write(sock, (char *)&magic, sizeof(magic)))
+		die("Cannot write event magic");
+	if (evsock_write(sock, buf, ev->length + sizeof(*ev)))
+		die("Cannot write event data");
+
+	evsock_disconnect(sock);
 
 	return 0;
 }

@@ -1,20 +1,20 @@
 
 CFLAGS += -p -O2 -D_GNU_SOURCE
 CFLAGS += -DWITH_UGID
-#CFLAGS += -DWITH_EVSOCK
+CFLAGS += -DEVHEAD_MAGIC=1234
 
 OBJ_diskmountd = \
 		 util.o \
 		 nlsock.o \
 		 evsock.o \
-		 evenv.o \
-		 evqueue.o \
+		 diskev.o \
 		 diskconf.o \
 		 diskmountd.o
 
 OBJ_diskmount = \
 		 util.o \
 		 evsock.o \
+		 diskev.o \
 		 diskmount.o
 
 all: diskmountd diskmount
