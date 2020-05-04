@@ -5,8 +5,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <linux/netlink.h>
 #include <arpa/inet.h>
+#include <linux/netlink.h>
 
 #include "util.h"
 #include "diskev.h"
@@ -166,7 +166,18 @@ int nlev_parse(struct diskev *evt, char *data, int size)
 	}
 
 	if (ev_check(evt)) {
-		verror("Invalid event parameters, size %u", size);
+		vinfo("Incorrect event type %s/%s/%s", evt->subsys, evt->type, evt->device);
+		ev_free(evt);
+		return 1;
+	}
+
+	/* Try to fill up missing event
+	 * properties; required instant
+	 * sanitize for remove event. */
+	ev_sanitize(evt);
+
+	if (ev_validate(evt)) {
+		verror("Invalid event parameters, device %s, size %u", evt->device, size);
 		ev_free(evt);
 		return 1;
 	}

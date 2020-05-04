@@ -67,12 +67,7 @@ int main(int argc, char *argv[])
 	for (env = environ; *env; ++env)
 		update(&evt, *env);
 
-	if (!evt.subsys)
-		evt.subsys = "block";
-	if (!evt.type)
-		evt.type = "partition";
-
-	if (ev_check(&evt))
+	if (ev_validate(&evt))
 		die("Invalid event params");
 
 	ev = (struct evtlv *)buf;

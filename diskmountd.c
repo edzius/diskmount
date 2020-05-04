@@ -108,6 +108,11 @@ static void process_events(void)
 	struct diskev *tmp;
 
 	while ((tmp = ev_next())) {
+		/* Try to fill up missing event
+		 * properties; required delayed
+		 * sanitize for add event. */
+		ev_sanitize(tmp);
+		/* Find mount point and do mount */
 		process_mount(tmp);
 
 		ev_free(tmp);
@@ -172,7 +177,7 @@ static void handle_kobj_event(int sock)
 	buf += descr;
 
 	if (nlev_parse(&evt, buf, len)) {
-		warn("Invalid kobject uevent message, size %zu", len);
+		info("Invalid kobject uevent message, size %zu", len);
 		return;
 	}
 
@@ -219,7 +224,7 @@ static void handle_udev_event(int sock)
 	buf += descr;
 
 	if (nlev_parse(&evt, buf, len)) {
-		warn("Invalid udev uevent message, size %zu", len);
+		info("Invalid udev uevent message, size %zu", len);
 		return;
 	}
 

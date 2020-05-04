@@ -183,13 +183,7 @@ int evev_parse(struct diskev *evt, char *data, int size)
 			      tlv->type, tlv->length);
 	}
 
-	/* We are sure event is for correct
-	 * subsystem and device type, thus
-	 * just forge them here. */
-	evt->subsys = strdup("block");
-	evt->type = strdup("partition");
-
-	if (ev_check(evt)) {
+	if (ev_validate(evt)) {
 		verror("Invalid event, size %u", size);
 		ev_free(evt);
 		return 1;
