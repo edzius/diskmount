@@ -127,7 +127,7 @@ static int nlev_update_part(struct diskev *evt, char *line)
 	} else if (!strcmp(line, "DEVTYPE")) {
 		evt->type = strdup(pos);
 	} else if (!strcmp(line, "DEVNAME")) {
-		evt->device = strdup(pos);
+		evt->device = strfdup("/dev/%s", pos);
 	} else if (!strcmp(line, "ID_FS_TYPE")) {
 		evt->filesys = strdup(pos);
 	} else if (!strcmp(line, "ID_SERIAL_SHORT")) {

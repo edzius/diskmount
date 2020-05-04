@@ -28,6 +28,7 @@
 void set_coe(int fd);
 void set_nio(int fd);
 
+char *strfdup(const char *format, ... ) __print_format(1, 2);
 void __noreturn die(const char *msg, ...) __print_format(1, 2);
 
 void log_print(int lvl, char *fmt, ...) __print_format(2, 3);

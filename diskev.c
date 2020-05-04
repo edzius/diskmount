@@ -141,8 +141,9 @@ static char *get_disk_prop(const char *type, const char *disk)
 	int len;
 	char link[128];
 	char path[128];
+	char real[128];
 	char *file = path;
-	char *pos, *res = NULL;
+	char *res = NULL;
 	char buf[64];
 
 	file += sprintf(path, "/dev/disk/%s", type);
@@ -165,8 +166,11 @@ static char *get_disk_prop(const char *type, const char *disk)
 			continue;
 		link[len] = 0;
 
-		pos = strstr(link, disk);
-		if (!pos || strcmp(pos, disk))
+		sprintf(file, "/%s", link);
+		if (!realpath(path, real))
+			continue;
+
+		if (strcmp(real, disk))
 			continue;
 
 		strcpy(buf, dp->d_name);

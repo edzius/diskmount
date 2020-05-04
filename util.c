@@ -40,6 +40,18 @@ void set_nio(int fd)
                 die("cannot set O_NONBLOCK flags.\n");
 }
 
+char *strfdup(const char *format, ... )
+{
+	char buf[1024];
+	va_list ap;
+
+	va_start(ap, format);
+	vsnprintf(buf, sizeof(buf), format, ap);
+	va_end(ap);
+
+	return strdup(buf);
+}
+
 void __noreturn die(const char *format, ... )
 {
 	int saved = errno;
