@@ -1,8 +1,10 @@
 
+#include <mntent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "list.h"
 #include "util.h"
 #include "diskconf.h"
 #include "diskev.h"
@@ -16,10 +18,10 @@ struct diskdef {
 	char *mount_point;
 	char *mount_fs;
 	char *mount_opts;
-	struct diskdef *next;
+	struct list_head list;
 };
 
-struct diskdef *conf;
+LLIST_HEAD(mount_conf);
 
 static int conf_update_device(struct diskdef *def, char *src)
 {
@@ -88,130 +90,61 @@ static int conf_update_mount(struct diskdef *def, char *src)
 	return 0;
 }
 
-static int conf_update_fs(struct diskdef *def, char *src)
+static void conf_add_entry(struct mntent *ent)
 {
-	if (!src) {
-		vinfo("Missing mount file system");
-		return 1;
-	}
-
-	def->mount_fs = strdup(src);
-	return 0;
-}
-
-static int conf_update_opt(struct diskdef *def, char *src)
-{
-	if (!src) {
-		vinfo("Missing mount options");
-		return 1;
-	}
-
-	def->mount_opts = strdup(src);
-	return 0;
-}
-
-static int conf_check_comment(char *line)
-{
-	while (*line == ' ') {
-		line++;
-	}
-	return *line == '#';
-}
-
-static void conf_process_line(char *line)
-{
-	const char sep[] = "\t ";
-	char *bak;
-	char *token;
 	struct diskdef *def;
-	struct diskdef *old;
 
-	if (conf_check_comment(line))
-		return;
-
-	bak = strdup(line);
 	def = calloc(1, sizeof(*def));
+	if (!def)
+		die("malloc() failed");
 
-	token = strtok(line, sep);
-	if (conf_update_device(def, token))
+	if (conf_update_device(def, ent->mnt_fsname))
 		goto fail;
 
-	token = strtok(NULL, sep);
-	if (conf_update_mount(def, token))
+	if (conf_update_mount(def, ent->mnt_dir))
 		goto fail;
 
-	token = strtok(NULL, sep);
-	if (!token)
+	if (!strlen(ent->mnt_type))
 		goto done;
-	conf_update_fs(def, token);
+	def->mount_fs = strdup(ent->mnt_type);
 
-	token = strtok(NULL, sep);
-	if (!token)
+	if (!strlen(ent->mnt_opts))
 		goto done;
-	conf_update_opt(def, token);
+	def->mount_opts = strdup(ent->mnt_opts);
 
 done:
-	old = conf;
-	conf = def;
-	def->next = old;
-	vinfo("Included config line: '%s'", bak);
-	free(bak);
+	list_add_tail(&def->list, &mount_conf);
+	vinfo("Stored mount: '%s' -> '%s'",
+	      ent->mnt_fsname, ent->mnt_dir);
 	return;
 
 fail:
-	warn("Skipped invalid config line: '%s'", bak);
-	free(bak);
+	warn("Skipped invalid mount: '%s' -> '%s'",
+	     ent->mnt_fsname, ent->mnt_dir);
 	free(def);
-}
-
-static int conf_parse_chunk(char *data, int len)
-{
-	char *pos;
-
-	vdebug("Processing data chunk, size: '%u'", len);
-
-	while (1) {
-		pos = strchr(data, '\n');
-		if (!pos)
-			break;
-		*pos = '\0';
-
-		conf_process_line(data);
-		data = pos + 1;
-	}
-	return strlen(data);
 }
 
 static int conf_load_file(const char *file_name)
 {
-	char buf[1024];
-	int cnt, off;
-	int err;
 	FILE *fp;
+	struct mntent *ent;
 
-	fp = fopen(file_name, "r");
+	fp = setmntent(file_name, "r");
 	if (!fp) {
-		debug("Cannot to open: '%s'", file_name);
+		debug("Cannot read: '%s'", file_name);
 		return -1;
 	}
 
 	vinfo("Loading config: '%s'", file_name);
 
-	while (!feof(fp) && !ferror(fp)) {
-		memset(buf, 0, sizeof(buf));
-		cnt = fread(buf, sizeof(char), sizeof(buf), fp);
-		off = conf_parse_chunk(buf, cnt);
-		if (off != 0 && off < cnt) {
-			vdebug("Seek back, offset: '%i'", off - cnt);
-			fseek(fp, off - cnt, SEEK_CUR);
-		}
+	while (NULL != (ent = getmntent(fp))) {
+		conf_add_entry(ent);
 	}
-	err = ferror(fp);
-	fclose(fp);
+	endmntent(fp);
 
 	conf_print();
 
-	return err;
+	return 0;
 }
 
 int conf_load(void)
@@ -228,9 +161,9 @@ int conf_load(void)
 
 int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 {
-	struct diskdef *def = conf;
+	struct diskdef *def, *n;
 
-	while (def) {
+	list_for_each_entry_safe(def, n, &mount_conf, list) {
 		if (def->device) {
 			if (evt->device && !strcmp(def->device, evt->device))
 				break;
@@ -247,8 +180,7 @@ int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 			if (evt->partuuid && !strcmp(def->part_uuid, evt->partuuid))
 				break;
 		}
-
-		def = def->next;
+		def = NULL;
 	}
 
 	*mpoint = '\0';
@@ -273,35 +205,33 @@ int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 
 void conf_print(void)
 {
-	struct diskdef *def = conf;
+	struct diskdef *def, *n;
 	char buffer[128];
 	int total = sizeof(buffer);
 	int size = 0;
 
 	debug("Loaded config:");
 
-	while (def) {
+	list_for_each_entry_safe(def, n, &mount_conf, list) {
 		if (def->device) {
-			size += snprintf(buffer, total - size, "DEV = %s\t\t", def->device);
+			size += snprintf(buffer + size, total - size, "DEV = %s\t\t", def->device);
 		} else if (def->serial) {
-			size += snprintf(buffer, total - size, "SERIAL = %s\t\t", def->serial);
+			size += snprintf(buffer + size, total - size, "SERIAL = %s\t\t", def->serial);
 		} else if (def->fs_label) {
-			size += snprintf(buffer, total - size, "LABEL = %s\t\t", def->fs_label);
+			size += snprintf(buffer + size, total - size, "LABEL = %s\t\t", def->fs_label);
 		} else if (def->fs_uuid) {
-			size += snprintf(buffer, total - size, "UUID = %s\t\t", def->fs_uuid);
+			size += snprintf(buffer + size, total - size, "UUID = %s\t\t", def->fs_uuid);
 		} else if (def->part_uuid) {
-			size += snprintf(buffer, total - size, "PARTUUID = %s\t\t", def->part_uuid);
+			size += snprintf(buffer + size, total - size, "PARTUUID = %s\t\t", def->part_uuid);
 		}
 
 		if (def->mount_point)
-			size += snprintf(buffer, total - size, "%s\t\t", def->mount_point);
+			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_point);
 		if (def->mount_fs)
-			size += snprintf(buffer, total - size, "%s\t\t", def->mount_fs);
+			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_fs);
 		if (def->mount_opts)
-			size += snprintf(buffer, total - size, "%s\t\t", def->mount_opts);
+			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_opts);
 
 		debug("%s", buffer);
-
-		def = def->next;
 	}
 }
