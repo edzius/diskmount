@@ -161,7 +161,7 @@ int conf_load(void)
 
 int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 {
-	struct diskdef *def, *n;
+	struct diskdef *def = NULL, *n;
 
 	list_for_each_entry_safe(def, n, &mount_conf, list) {
 		if (def->device) {
@@ -205,14 +205,14 @@ int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 
 void conf_print(void)
 {
-	struct diskdef *def, *n;
+	struct diskdef *def;
 	char buffer[128];
 	int total = sizeof(buffer);
 	int size = 0;
 
 	debug("Loaded config:");
 
-	list_for_each_entry_safe(def, n, &mount_conf, list) {
+	list_for_each_entry(def, &mount_conf, list) {
 		if (def->device) {
 			size += snprintf(buffer + size, total - size, "DEV = %s\t\t", def->device);
 		} else if (def->serial) {
