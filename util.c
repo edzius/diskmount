@@ -1,4 +1,5 @@
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -7,6 +8,8 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+
+#include <sys/types.h>
 
 #include "util.h"
 
@@ -154,4 +157,62 @@ void syslog_open(void)
 void syslog_close(void)
 {
 	closelog();
+}
+
+static char *get_disk_prop(const char *type, const char *disk)
+{
+	struct dirent *dp;
+	DIR *dfd;
+	int len;
+	char link[128];
+	char path[128];
+	char real[128];
+	char *file = path;
+	char *res = NULL;
+	char buf[64];
+
+	file += sprintf(path, "/dev/disk/%s", type);
+
+	dfd = opendir(path);
+	if (dfd == NULL) {
+		vwarn("Cannot open directory: '%s'", path);
+		return 0;
+	}
+
+	while ((dp = readdir(dfd)) != NULL) {
+		if (dp->d_name[0] == '.')
+			continue;
+
+		sprintf(file, "/%s", dp->d_name);
+		len = readlink(path, link, sizeof(link));
+		if (len == -1)
+			continue;
+		if (len == sizeof(link))
+			continue;
+		link[len] = 0;
+
+		sprintf(file, "/%s", link);
+		if (!realpath(path, real))
+			continue;
+
+		if (strcmp(real, disk))
+			continue;
+
+		strcpy(buf, dp->d_name);
+		res = buf;
+		break;
+	}
+
+	closedir(dfd);
+	return res;
+}
+
+char *get_disk_uuid(const char *disk)
+{
+	return get_disk_prop("by-uuid", disk);
+}
+
+char *get_disk_partuuid(const char *disk)
+{
+	return get_disk_prop("by-partuuid", disk);
 }

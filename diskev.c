@@ -1,12 +1,10 @@
 
-#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
 
-#include <sys/types.h>
 #ifdef WITH_BLKID
 #include <blkid/blkid.h>
 #endif
@@ -137,54 +135,6 @@ int ev_validate(struct diskev *evt)
 	return 0;
 }
 
-static char *get_disk_prop(const char *type, const char *disk)
-{
-	struct dirent *dp;
-	DIR *dfd;
-	int len;
-	char link[128];
-	char path[128];
-	char real[128];
-	char *file = path;
-	char *res = NULL;
-	char buf[64];
-
-	file += sprintf(path, "/dev/disk/%s", type);
-
-	dfd = opendir(path);
-	if (dfd == NULL) {
-		vwarn("Cannot open directory: '%s'", path);
-		return 0;
-	}
-
-	while ((dp = readdir(dfd)) != NULL) {
-		if (dp->d_name[0] == '.')
-			continue;
-
-		sprintf(file, "/%s", dp->d_name);
-		len = readlink(path, link, sizeof(link));
-		if (len == -1)
-			continue;
-		if (len == sizeof(link))
-			continue;
-		link[len] = 0;
-
-		sprintf(file, "/%s", link);
-		if (!realpath(path, real))
-			continue;
-
-		if (strcmp(real, disk))
-			continue;
-
-		strcpy(buf, dp->d_name);
-		res = buf;
-		break;
-	}
-
-	closedir(dfd);
-	return res;
-}
-
 void ev_sanitize(struct diskev *evt)
 {
 	const char *val;
@@ -199,7 +149,7 @@ void ev_sanitize(struct diskev *evt)
 		return;
 
 	if (!evt->fsuuid) {
-		val = get_disk_prop("by-uuid", evt->device);
+		val = get_disk_uuid(evt->device);
 		if (val) {
 			evt->fsuuid = strdup(val);
 			vdebug("Updated FS UUID %s, device %s", evt->fsuuid, evt->device);
@@ -208,7 +158,7 @@ void ev_sanitize(struct diskev *evt)
 		}
 	}
 	if (!evt->partuuid) {
-		val = get_disk_prop("by-partuuid", evt->device);
+		val = get_disk_partuuid(evt->device);
 		if (val) {
 			evt->partuuid = strdup(val);
 			vdebug("Updated PART UUID %s, device %s", evt->partuuid, evt->device);

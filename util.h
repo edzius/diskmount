@@ -38,5 +38,7 @@ void log_debug(int st);
 int is_debug(void);
 void syslog_open(void);
 void syslog_close(void);
+char *get_disk_uuid(const char *disk);
+char *get_disk_partuuid(const char *disk);
 
 #endif // _UTIL_H
