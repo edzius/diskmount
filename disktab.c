@@ -6,6 +6,7 @@
 
 #include "list.h"
 #include "util.h"
+#include "diskconf.h"
 
 struct diskent {
 	char *mount_device;
@@ -74,6 +75,12 @@ void tab_load(void)
 	vinfo("Loading mounts");
 
 	while (NULL != (ent = getmntent(fp))) {
+		if (!conf_has_mount(ent->mnt_dir)) {
+			vinfo("Skipped non-configed mount entry: '%s' -> '%s'",
+			      ent->mnt_fsname, ent->mnt_dir);
+			return;
+		}
+
 		tab_add(ent->mnt_fsname, ent->mnt_dir);
 	}
 	endmntent(fp);

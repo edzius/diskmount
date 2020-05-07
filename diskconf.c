@@ -159,6 +159,18 @@ int conf_load(void)
 	return -1;
 }
 
+int conf_has_mount(char *point)
+{
+	struct diskdef *def;
+
+	list_for_each_entry(def, &mount_conf, list) {
+		if (!strcmp(def->mount_point, point))
+			return 1;
+	}
+
+	return 0;
+}
+
 int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 {
 	struct diskdef *def = NULL, *n;

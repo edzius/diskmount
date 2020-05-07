@@ -19,6 +19,7 @@
 
 #include "util.h"
 #include "diskconf.h"
+#include "disktab.h"
 #include "diskev.h"
 #include "nlsock.h"
 #include "evsock.h"
@@ -386,9 +387,10 @@ int main(int argc, char *argv[])
 	log_debug(ctx.debug);
 	log_level(ctx.verbosity);
 
+	/* Load mount config */
 	conf_load();
-	/* No need to load mounts */
-	/* tab_load(); */
+	/* Load configured mounts */
+	tab_load();
 
 	if (ctx.daemonize && daemon(0, 0) == -1)
 		die("daemon() failed\n");
