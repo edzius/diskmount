@@ -7,6 +7,9 @@
 #include <time.h>
 
 #include <sys/types.h>
+#ifdef WITH_BLKID
+#include <blkid/blkid.h>
+#endif
 
 #include "list.h"
 #include "util.h"
@@ -185,8 +188,14 @@ static char *get_disk_prop(const char *type, const char *disk)
 void ev_sanitize(struct diskev *evt)
 {
 	const char *val;
+#ifdef WITH_BLKID
+	blkid_probe pr;
+#endif
 
 	if (!evt->device)
+		return;
+
+	if (evt->fsuuid && evt->partuuid && evt->filesys)
 		return;
 
 	if (!evt->fsuuid) {
@@ -194,6 +203,8 @@ void ev_sanitize(struct diskev *evt)
 		if (val) {
 			evt->fsuuid = strdup(val);
 			vdebug("Updated FS UUID %s, device %s", evt->fsuuid, evt->device);
+		} else {
+			vwarn("Failed to update by-FS UUID, device %s", evt->device);
 		}
 	}
 	if (!evt->partuuid) {
@@ -201,6 +212,51 @@ void ev_sanitize(struct diskev *evt)
 		if (val) {
 			evt->partuuid = strdup(val);
 			vdebug("Updated PART UUID %s, device %s", evt->partuuid, evt->device);
+		} else {
+			vwarn("Failed to update by-PART UUID, device %s", evt->device);
 		}
 	}
+
+#ifdef WITH_BLKID
+	pr = blkid_new_probe_from_filename(evt->device);
+	if (!pr)
+		return;
+
+	blkid_do_probe(pr);
+
+	if (!evt->fsuuid) {
+		val = NULL;
+		blkid_probe_lookup_value(pr, "UUID", &val, NULL);
+		if (val) {
+			evt->fsuuid = strdup(val);
+			vdebug("Updated FS UUID %s, device %s", evt->fsuuid, evt->device);
+		} else {
+			vwarn("Failed to update FS UUID, device %s", evt->device);
+		}
+	}
+
+	if (!evt->partuuid) {
+		val = NULL;
+		blkid_probe_lookup_value(pr, "PARTUUID", &val, NULL);
+		if (val) {
+			evt->partuuid = strdup(val);
+			vdebug("Updated PART UUID %s, device %s", evt->partuuid, evt->device);
+		} else {
+			vwarn("Failed to update PART UUID, device %s", evt->device);
+		}
+	}
+
+	if (!evt->filesys) {
+		val = NULL;
+		blkid_probe_lookup_value(pr, "TYPE", &val, NULL);
+		if (val) {
+			evt->filesys = strdup(val);
+			vdebug("Updated FS type %s, device %s", evt->filesys, evt->device);
+		} else {
+			vwarn("Failed to update FS type, device %s", evt->device);
+		}
+	}
+
+	blkid_free_probe(pr);
+#endif
 }

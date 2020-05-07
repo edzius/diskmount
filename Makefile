@@ -2,7 +2,9 @@
 CFLAGS += -p -O2 -Wall
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += -DWITH_UGID
+CFLAGS += -DWITH_BLKID
 CFLAGS += -DEVHEAD_MAGIC=1234
+LDFLAGS += -lblkid
 
 OBJ_diskmountd = \
 		 util.o \

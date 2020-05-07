@@ -61,12 +61,13 @@ static void process_mount(struct diskev *evt)
 	device = evt->device;
 	if (!fs)
 		fs = evt->filesys;
-	if (!fs) {
-		error("Skip mount, unknown file system: '%s'", evt->device);
-		return;
-	}
 
 	if (!strcmp(evt->action, "add")) {
+		if (!fs) {
+			error("Skip mount, unknown file system: '%s'", evt->device);
+			return;
+		}
+
 		if (ctx.dryrun) {
 			printf("Mounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
 			printf("\n");
