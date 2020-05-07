@@ -11,6 +11,7 @@ OBJ_diskmountd = \
 		 nlsock.o \
 		 evsock.o \
 		 diskev.o \
+		 disktab.o \
 		 diskconf.o \
 		 diskmountd.o
 

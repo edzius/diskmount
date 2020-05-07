@@ -49,20 +49,18 @@ static void sigterm(int signo)
 static void process_mount(struct diskev *evt)
 {
 	char *point, *fs, *opts;
-	char *device;
+	char *device = evt->device;
 
 	vdebug("Processing mount event: '%s'", evt->device);
 
-	if (conf_find(evt, &point, &fs, &opts)) {
-		debug("Skip mount, no confiured mount: '%s'", evt->device);
-		return;
-	}
-
-	device = evt->device;
-	if (!fs)
-		fs = evt->filesys;
-
 	if (!strcmp(evt->action, "add")) {
+		if (conf_find(evt, &point, &fs, &opts)) {
+			debug("Skip mount, no confiured mount: '%s'", evt->device);
+			return;
+		}
+
+		if (!fs)
+			fs = evt->filesys;
 		if (!fs) {
 			error("Skip mount, unknown file system: '%s'", evt->device);
 			return;
@@ -86,18 +84,28 @@ static void process_mount(struct diskev *evt)
 		if (mount(device, point, fs, MS_NOATIME, opts))
 			error("Failed to mount '%s' to '%s', type '%s', opts '%s': %u (%s)",
 			      device, point, fs, opts, errno, strerror(errno));
+		else
+			tab_add(device, point);
 	} else if (!strcmp(evt->action, "remove")) {
+		point = tab_find(evt->device);
+		if (!point) {
+			debug("Skip unmount, not mounter '%s'", evt->device);
+			return;
+		}
+
 		if (ctx.dryrun) {
-			printf("Unmounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
+			printf("Unmounting '%s' -> '%s'", device, point);
 			printf("\n");
 			return;
 		}
 
-		info("Unmounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
+		info("Unmounting '%s' -> '%s'", device, point);
 
 		if (umount(point))
 			error("Failed to unmount '%s' from '%s': %u (%s)",
 			      device, point, errno, strerror(errno));
+		else
+			tab_del(point);
 	} else {
 		warn("Unknown event '%s' mounting '%s' -> '%s' (%s, %s)",
 		     evt->action, device, point, fs, opts);
@@ -379,6 +387,8 @@ int main(int argc, char *argv[])
 	log_level(ctx.verbosity);
 
 	conf_load();
+	/* No need to load mounts */
+	/* tab_load(); */
 
 	if (ctx.daemonize && daemon(0, 0) == -1)
 		die("daemon() failed\n");

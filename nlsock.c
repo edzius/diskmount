@@ -171,11 +171,6 @@ int nlev_parse(struct diskev *evt, char *data, int size)
 		return 1;
 	}
 
-	/* Try to fill up missing event
-	 * properties; required instant
-	 * sanitize for remove event. */
-	ev_sanitize(evt);
-
 	if (ev_validate(evt)) {
 		verror("Invalid event parameters, device %s, size %u", evt->device, size);
 		ev_free(evt);
