@@ -173,23 +173,25 @@ int conf_has_mount(char *point)
 
 int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 {
-	struct diskdef *def = NULL, *n;
+	struct diskdef *tmp;
+	struct diskdef *def = NULL;
 
-	list_for_each_entry_safe(def, n, &mount_conf, list) {
-		if (def->device) {
-			if (evt->device && !strcmp(def->device, evt->device))
+	list_for_each_entry(tmp, &mount_conf, list) {
+		def = tmp;
+		if (tmp->device) {
+			if (evt->device && !strcmp(tmp->device, evt->device))
 				break;
-		} else if (def->serial) {
-			if (evt->serial && !strcmp(def->serial, evt->serial))
+		} else if (tmp->serial) {
+			if (evt->serial && !strcmp(tmp->serial, evt->serial))
 				break;
-		} else if (def->fs_label) {
-			if (evt->label && !strcmp(def->fs_label, evt->label))
+		} else if (tmp->fs_label) {
+			if (evt->label && !strcmp(tmp->fs_label, evt->label))
 				break;
-		} else if (def->fs_uuid) {
-			if (evt->fsuuid && !strcmp(def->fs_uuid, evt->fsuuid))
+		} else if (tmp->fs_uuid) {
+			if (evt->fsuuid && !strcmp(tmp->fs_uuid, evt->fsuuid))
 				break;
-		} else if (def->part_uuid) {
-			if (evt->partuuid && !strcmp(def->part_uuid, evt->partuuid))
+		} else if (tmp->part_uuid) {
+			if (evt->partuuid && !strcmp(tmp->part_uuid, evt->partuuid))
 				break;
 		}
 		def = NULL;

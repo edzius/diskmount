@@ -18,10 +18,12 @@ LLIST_HEAD(mount_tab);
 
 void tab_del(const char *devfile)
 {
-	struct diskent *ent = NULL, *n;
+	struct diskent *tmp;
+	struct diskent *ent = NULL;
 
-	list_for_each_entry_safe(ent, n, &mount_tab, list) {
-		if (!strcmp(ent->mount_device, devfile))
+	list_for_each_entry(tmp, &mount_tab, list) {
+		ent = tmp;
+		if (!strcmp(tmp->mount_device, devfile))
 			break;
 		ent = NULL;
 	}
@@ -78,7 +80,7 @@ void tab_load(void)
 		if (!conf_has_mount(ent->mnt_dir)) {
 			vinfo("Skipped non-configed mount entry: '%s' -> '%s'",
 			      ent->mnt_fsname, ent->mnt_dir);
-			return;
+			continue;
 		}
 
 		tab_add(ent->mnt_fsname, ent->mnt_dir);

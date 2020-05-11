@@ -52,18 +52,18 @@ static void process_mount(struct diskev *evt)
 	char *point, *fs, *opts;
 	char *device = evt->device;
 
-	vdebug("Processing mount event: '%s'", evt->device);
+	vdebug("Processing mount event: '%s'", device);
 
 	if (!strcmp(evt->action, "add")) {
 		if (conf_find(evt, &point, &fs, &opts)) {
-			debug("Skip mount, no confiured mount: '%s'", evt->device);
+			debug("Skip mount, no confiured mount: '%s'", device);
 			return;
 		}
 
 		if (!fs)
 			fs = evt->filesys;
 		if (!fs) {
-			error("Skip mount, unknown file system: '%s'", evt->device);
+			error("Skip mount, unknown file system: '%s'", device);
 			return;
 		}
 
@@ -88,9 +88,9 @@ static void process_mount(struct diskev *evt)
 		else
 			tab_add(device, point);
 	} else if (!strcmp(evt->action, "remove")) {
-		point = tab_find(evt->device);
+		point = tab_find(device);
 		if (!point) {
-			debug("Skip unmount, not mounter '%s'", evt->device);
+			debug("Skip unmount, not mounted '%s'", device);
 			return;
 		}
 
@@ -106,7 +106,7 @@ static void process_mount(struct diskev *evt)
 			error("Failed to unmount '%s' from '%s': %u (%s)",
 			      device, point, errno, strerror(errno));
 		else
-			tab_del(point);
+			tab_del(device);
 	} else {
 		warn("Unknown event '%s' mounting '%s' -> '%s' (%s, %s)",
 		     evt->action, device, point, fs, opts);

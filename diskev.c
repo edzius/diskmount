@@ -40,17 +40,17 @@ void ev_remove(struct diskev *evt)
 struct diskev *ev_next(void)
 {
 	time_t ts;
-	struct diskev *tmp, *n;
+	struct diskev *tmp;
 	struct diskev *evt = NULL;
 
 	ts = time(NULL);
 
-	list_for_each_entry_safe(tmp, n, &event_queue, list) {
+	list_for_each_entry(tmp, &event_queue, list) {
 		vdebug("Checking event %p, time %li/%li", tmp, tmp->ts, ts);
-		if (tmp->ts <= ts) {
-			evt = tmp;
+		evt = tmp;
+		if (tmp->ts <= ts)
 			break;
-		}
+		evt = NULL;
 	}
 
 	if (!evt) {
@@ -65,9 +65,9 @@ struct diskev *ev_next(void)
 
 struct diskev *ev_find(struct diskev *evt)
 {
-	struct diskev *tmp, *n;
+	struct diskev *tmp;
 
-	list_for_each_entry_safe(tmp, n, &event_queue, list) {
+	list_for_each_entry(tmp, &event_queue, list) {
 		if (evt->partuuid && tmp->partuuid) {
 			if (!strcmp(evt->partuuid, tmp->partuuid))
 				return tmp;
