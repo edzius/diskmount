@@ -399,7 +399,6 @@ int main(int argc, char *argv[])
 		syslog_open();
 
 	signal(SIGTERM, sigterm);
-	signal(SIGSEGV, sigterm);
 	signal(SIGQUIT, sigterm);
 
 	if (!ctx.kevent && !access("/run/udev/control", F_OK)) {
