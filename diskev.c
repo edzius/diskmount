@@ -168,6 +168,9 @@ void ev_sanitize(struct diskev *evt)
 	}
 
 #ifdef WITH_BLKID
+	if (evt->fsuuid && evt->partuuid && evt->filesys)
+		return;
+
 	pr = blkid_new_probe_from_filename(evt->device);
 	if (!pr)
 		return;
