@@ -142,8 +142,6 @@ static int conf_load_file(const char *file_name)
 	}
 	endmntent(fp);
 
-	conf_print();
-
 	return 0;
 }
 
@@ -217,26 +215,26 @@ int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 	return 0;
 }
 
-void conf_print(void)
+void conf_dump(FILE *fp)
 {
 	struct diskdef *def;
 	char buffer[128];
 	int total = sizeof(buffer);
 	int size = 0;
 
-	debug("Loaded config:");
+	fprintf(fp, "Mount config:\n");
 
 	list_for_each_entry(def, &mount_conf, list) {
 		if (def->device) {
-			size += snprintf(buffer + size, total - size, "DEV = %s\t\t", def->device);
+			size += snprintf(buffer + size, total - size, "DEV=%s\t\t", def->device);
 		} else if (def->serial) {
-			size += snprintf(buffer + size, total - size, "SERIAL = %s\t\t", def->serial);
+			size += snprintf(buffer + size, total - size, "SERIAL=%s\t\t", def->serial);
 		} else if (def->fs_label) {
-			size += snprintf(buffer + size, total - size, "LABEL = %s\t\t", def->fs_label);
+			size += snprintf(buffer + size, total - size, "LABEL=%s\t\t", def->fs_label);
 		} else if (def->fs_uuid) {
-			size += snprintf(buffer + size, total - size, "UUID = %s\t\t", def->fs_uuid);
+			size += snprintf(buffer + size, total - size, "UUID=%s\t\t", def->fs_uuid);
 		} else if (def->part_uuid) {
-			size += snprintf(buffer + size, total - size, "PARTUUID = %s\t\t", def->part_uuid);
+			size += snprintf(buffer + size, total - size, "PARTUUID=%s\t\t", def->part_uuid);
 		}
 
 		if (def->mount_point)
@@ -246,6 +244,6 @@ void conf_print(void)
 		if (def->mount_opts)
 			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_opts);
 
-		debug("%s", buffer);
+		fprintf(fp, "%s\n", buffer);
 	}
 }

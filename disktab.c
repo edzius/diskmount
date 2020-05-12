@@ -99,3 +99,13 @@ char *tab_find(const char *devfile)
 
 	return NULL;
 }
+
+void tab_dump(FILE *fp)
+{
+	struct diskent *ent;
+
+	fprintf(fp, "Mount cache:\n");
+
+	list_for_each_entry(ent, &mount_tab, list)
+		fprintf(fp, "%s\t\t%s\n", ent->mount_device, ent->mount_point);
+}

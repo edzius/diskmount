@@ -4,8 +4,8 @@
 #include "diskev.h"
 
 int conf_load(void);
-void conf_print(void);
 int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts);
 int conf_has_mount(char *point);
+void conf_dump(FILE *fp);
 
 #endif // _DISKCONF_H

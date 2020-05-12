@@ -29,8 +29,8 @@
 struct diskmnt_ctx {
 	int verbosity;
 	int daemonize;
-	int dryrun;
 	int kevent;
+	int monitor;
 	int debug;
 #ifdef WITH_UGID
 	int uid;
@@ -64,6 +64,11 @@ static void process_mount(struct diskev *evt)
 			return;
 		}
 
+		if (ctx.monitor) {
+			ev_dump(stdout, evt);
+			return;
+		}
+
 		if (conf_find(evt, &point, &fs, &opts)) {
 			debug("Skip mount, no confiured mount: '%s'", device);
 			return;
@@ -73,12 +78,6 @@ static void process_mount(struct diskev *evt)
 			fs = evt->filesys;
 		if (!fs) {
 			error("Skip mount, unknown file system: '%s'", device);
-			return;
-		}
-
-		if (ctx.dryrun) {
-			printf("Mounting '%s' -> '%s' (%s, %s)", device, point, fs, opts);
-			printf("\n");
 			return;
 		}
 
@@ -97,15 +96,14 @@ static void process_mount(struct diskev *evt)
 		else
 			tab_add(device, point);
 	} else if (!strcmp(action, "remove")) {
-		point = tab_find(device);
-		if (!point) {
-			debug("Skip unmount, not mounted '%s'", device);
+		if (ctx.monitor) {
+			ev_dump(stdout, evt);
 			return;
 		}
 
-		if (ctx.dryrun) {
-			printf("Unmounting '%s' -> '%s'", device, point);
-			printf("\n");
+		point = tab_find(device);
+		if (!point) {
+			debug("Skip unmount, not mounted '%s'", device);
 			return;
 		}
 
@@ -326,15 +324,15 @@ print_usage(void)
 
 static struct option long_options[] =
 {
-	{ "background",	no_argument,       0, 'b' },
-	{ "debug",	no_argument,       0, 'd' },
 	{ "help",	no_argument,       0, 'h' },
+	{ "background",	no_argument,       0, 'b' },
 	{ "kernel",	no_argument,       0, 'k' },
-	{ "dry-run",	no_argument,       0, 'n' },
+	{ "monitor",	no_argument,       0, 'm' },
 	{ "verbose",	no_argument,       0, 'v' },
+	{ "debug",	no_argument,       0, 'd' },
 #ifdef WITH_UGID
-	{ "user",	no_argument,       0, 'u' },
-	{ "group",	no_argument,       0, 'g' },
+	{ "user",	required_argument, 0, 'u' },
+	{ "group",	required_argument, 0, 'g' },
 #endif
 	{ 0, 0, 0, 0 }
 };
@@ -346,22 +344,22 @@ parse_options(int argc, char *argv[])
 
 	ctx.verbosity = 2;
 
-	while ((opt = getopt_long(argc, argv, "bdg:hknu:v", long_options, &index)) != -1) {
+	while ((opt = getopt_long(argc, argv, "bdg:hkmu:v", long_options, &index)) != -1) {
 		switch(opt) {
 		case 'b':
 			ctx.daemonize = 1;
 			break;
-		case 'd':
-			ctx.debug = 1;
-			break;
-		case 'n':
-			ctx.dryrun = 1;
-			break;
 		case 'k':
 			ctx.kevent = 1;
 			break;
+		case 'm':
+			ctx.monitor = 1;
+			break;
 		case 'v':
 			ctx.verbosity++;
+			break;
+		case 'd':
+			ctx.debug = 1;
 			break;
 #ifdef WITH_UGID
 		case 'u':
@@ -397,11 +395,17 @@ int main(int argc, char *argv[])
 	/* Load configured mounts */
 	tab_load();
 
-	if (ctx.daemonize && daemon(0, 0) == -1)
-		die("daemon() failed\n");
+	if (ctx.monitor) {
+		conf_dump(stdout);
+		tab_dump(stdout);
+	}
 
-	if (ctx.daemonize)
+	if (!ctx.monitor && ctx.daemonize) {
+		if (daemon(0, 0) == -1)
+			die("daemon() failed\n");
+
 		syslog_open();
+	}
 
 	signal(SIGTERM, sigterm);
 	signal(SIGQUIT, sigterm);

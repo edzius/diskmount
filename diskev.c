@@ -214,3 +214,23 @@ int ev_sanitize(struct diskev *evt)
 #endif
 	return 0;
 }
+
+void ev_dump(FILE *fp, struct diskev *evt)
+{
+	fprintf(fp, "# Disk event: %s\n", evt->action);
+
+	if (evt->device)
+		fprintf(fp, "DEV=%s\t\t", evt->device);
+	if (evt->serial)
+		fprintf(fp, "SERIAL=%s\t\t", evt->serial);
+	if (evt->label)
+		fprintf(fp, "LABEL=%s\t\t", evt->label);
+	if (evt->fsuuid)
+		fprintf(fp, "UUID=%s\t\t", evt->fsuuid);
+	if (evt->partuuid)
+		fprintf(fp, "PARTUUID=%s\t\t", evt->partuuid);
+	if (evt->filesys)
+		fprintf(fp, "\t%s\t\t", evt->filesys);
+
+	fprintf(fp, "\n");
+}
