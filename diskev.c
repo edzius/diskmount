@@ -135,7 +135,7 @@ int ev_validate(struct diskev *evt)
 	return 0;
 }
 
-void ev_sanitize(struct diskev *evt)
+int ev_sanitize(struct diskev *evt)
 {
 	const char *val;
 #ifdef WITH_BLKID
@@ -143,10 +143,10 @@ void ev_sanitize(struct diskev *evt)
 #endif
 
 	if (!evt->device)
-		return;
+		return -1;
 
 	if (evt->fsuuid && evt->partuuid && evt->filesys)
-		return;
+		return 0;
 
 	if (!evt->fsuuid) {
 		val = get_disk_uuid(evt->device);
@@ -169,11 +169,11 @@ void ev_sanitize(struct diskev *evt)
 
 #ifdef WITH_BLKID
 	if (evt->fsuuid && evt->partuuid && evt->filesys)
-		return;
+		return 0;
 
 	pr = blkid_new_probe_from_filename(evt->device);
 	if (!pr)
-		return;
+		return -1;
 
 	blkid_do_probe(pr);
 
@@ -212,4 +212,5 @@ void ev_sanitize(struct diskev *evt)
 
 	blkid_free_probe(pr);
 #endif
+	return 0;
 }

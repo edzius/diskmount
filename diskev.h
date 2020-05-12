@@ -25,6 +25,6 @@ struct diskev *ev_find(struct diskev *evt);
 void ev_free(struct diskev *evt);
 int ev_check(struct diskev *evt);
 int ev_validate(struct diskev *evt);
-void ev_sanitize(struct diskev *evt);
+int ev_sanitize(struct diskev *evt);
 
 #endif // _DISKEV_H

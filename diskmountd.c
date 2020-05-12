@@ -51,10 +51,19 @@ static void process_mount(struct diskev *evt)
 {
 	char *point, *fs, *opts;
 	char *device = evt->device;
+	char *action = evt->action;
 
 	vdebug("Processing mount event: '%s'", device);
 
-	if (!strcmp(evt->action, "add")) {
+	if (!strcmp(action, "add")) {
+		/* Try to fill up missing event
+		 * properties; required delayed
+		 * sanitize for add event. */
+		if (ev_sanitize(evt)) {
+			warn("Skip mount, cannot sanitize mount: '%s'", device);
+			return;
+		}
+
 		if (conf_find(evt, &point, &fs, &opts)) {
 			debug("Skip mount, no confiured mount: '%s'", device);
 			return;
@@ -87,7 +96,7 @@ static void process_mount(struct diskev *evt)
 			      device, point, fs, opts, errno, strerror(errno));
 		else
 			tab_add(device, point);
-	} else if (!strcmp(evt->action, "remove")) {
+	} else if (!strcmp(action, "remove")) {
 		point = tab_find(device);
 		if (!point) {
 			debug("Skip unmount, not mounted '%s'", device);
@@ -109,7 +118,7 @@ static void process_mount(struct diskev *evt)
 			tab_del(device);
 	} else {
 		warn("Unknown event '%s' mounting '%s' -> '%s' (%s, %s)",
-		     evt->action, device, point, fs, opts);
+		     action, device, point, fs, opts);
 	}
 }
 
@@ -118,10 +127,6 @@ static void process_events(void)
 	struct diskev *tmp;
 
 	while ((tmp = ev_next())) {
-		/* Try to fill up missing event
-		 * properties; required delayed
-		 * sanitize for add event. */
-		ev_sanitize(tmp);
 		/* Find mount point and do mount */
 		process_mount(tmp);
 
