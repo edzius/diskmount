@@ -1,0 +1,6 @@
+/dev/sdb1		/mnt/data
+DEV=/dev/sdb2 		/media/second		ntfs
+LABEL=LaCie		/home/user/LaCie
+SERIAL=0EC125605221692E	/mnt/dusty
+UUID=2920-50BC		/opt/secret 		vfat ro,user=chubaka
+PARTUUID=00014c47-01 	/ext			ext4

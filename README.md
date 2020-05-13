@@ -26,6 +26,19 @@ events and pass them for mounting.
 
 ## Build
 
+### Options
+
+* WITH_UGID -- option enables uid/gid switching and specifying
+  username/password when initializing mount directories.
+* WITH_BLKID -- enables linking with libblkid, enables extra
+  disk properties resolution capabilities for augmenting kernel
+  events. If something does not work with kernel evens libblkid
+  is likely to fix it.
+* EVHEAD_MAGIC -- specifies unique magic for coupling diskmount
+  and diskmountd to "ensure" custom local events integrity.
+
+### Compile
+
 ```
    make
 ```
@@ -69,12 +82,32 @@ There are main keywords to identify source mount device:
 
 ## Running
 
-Setup udev rule to forward events:
+Disk mount service automatically starts listening for NL (libudev or
+kernel) events as well as custom events on local UNIX domain socket.
+If libudev is not available it will start listening for kernel events.
+
+### Using libudev events
+
+Start diskmountd service will listen to udev events:
 
 ```
-   $ cat /etc/udev/rules.d/90-diskmount.rules
-   ENV{DEVTYPE}=="partition", RUN+="/usr/bin/diskmount"
+   diskmountd
 ```
+
+### Using kernel uevents
+
+If libudev is missing diskmountd will automatically fallback to kernel
+uevent approach. However it is possible to force listening to kernel
+events:
+
+```
+   diskmountd -k
+```
+
+### External events
+
+This is totally optional and not too useful mechanism in standard
+scenarios to trigger mount; all the events are captured via netlink.
 
 Start diskmountd service:
 
@@ -82,12 +115,23 @@ Start diskmountd service:
    diskmountd
 ```
 
-And that's it.
+Setup udev rule to forward events:
+
+```
+   $ cat /etc/udev/rules.d/90-diskmount.rules
+   ENV{DEVTYPE}=="partition", RUN+="/usr/bin/diskmount"
+```
+
+Or trigger manually:
+
+```
+   ACTION=add DEVNAME=/dev/sdb1 ID_FS_TYPE=ntfs /usr/bin/diskmount
+```
 
 ## Monitoring
 
-Firguring out disk identification parameters:
+Printing disk mount config, mount tab and captured events:
 
 ```
-   diskmountd -n
+   diskmountd -m
 ```
