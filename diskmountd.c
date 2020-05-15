@@ -182,7 +182,7 @@ static void handle_kobj_event(int sock)
 		return;
 	}
 
-	debug("Received kobject uevent, size %zu/%zu", size, len);
+	vinfo("Received kobject uevent, size %zu/%zu", size, len);
 
 	/* Skip desriptive line. */
 	descr = strlen(buf) + 1;
@@ -190,7 +190,7 @@ static void handle_kobj_event(int sock)
 	buf += descr;
 
 	if (nlev_parse(&evt, buf, len)) {
-		info("Invalid kobject uevent message, size %zu", len);
+		debug("Invalid kobject uevent message, size %zu", len);
 		return;
 	}
 
@@ -229,7 +229,7 @@ static void handle_udev_event(int sock)
 		return;
 	}
 
-	debug("Received udev uevent, size %zu/%zu", size, len);
+	vinfo("Received udev uevent, size %zu/%zu", size, len);
 
 	/* Skip event header. */
 	descr = sizeof(*umh);
@@ -237,7 +237,7 @@ static void handle_udev_event(int sock)
 	buf += descr;
 
 	if (nlev_parse(&evt, buf, len)) {
-		info("Invalid udev uevent message, size %zu", len);
+		debug("Invalid udev uevent message, size %zu", len);
 		return;
 	}
 
@@ -278,7 +278,7 @@ static void handle_local_event(int sock)
 		return;
 	}
 
-	debug("Read local event, size %u/%zu", evh->length, len);
+	vinfo("Read local event, size %u/%zu", evh->length, len);
 
 	if (evev_parse(&evt, evh->value, evh->length)) {
 		warn("Invalid event message, size %u", evh->length);
