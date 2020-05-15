@@ -218,32 +218,28 @@ int conf_find(struct diskev *evt, char **mpoint, char **mfs, char **mopts)
 void conf_dump(FILE *fp)
 {
 	struct diskdef *def;
-	char buffer[128];
-	int total = sizeof(buffer);
-	int size = 0;
 
 	fprintf(fp, "Mount config:\n");
-
 	list_for_each_entry(def, &mount_conf, list) {
 		if (def->device) {
-			size += snprintf(buffer + size, total - size, "DEV=%s\t\t", def->device);
+			fprintf(fp, "DEV=%-28s", def->device);
 		} else if (def->serial) {
-			size += snprintf(buffer + size, total - size, "SERIAL=%s\t\t", def->serial);
+			fprintf(fp, "SERIAL=%-25s", def->serial);
 		} else if (def->fs_label) {
-			size += snprintf(buffer + size, total - size, "LABEL=%s\t\t", def->fs_label);
+			fprintf(fp, "LABEL=%-26s", def->fs_label);
 		} else if (def->fs_uuid) {
-			size += snprintf(buffer + size, total - size, "UUID=%s\t\t", def->fs_uuid);
+			fprintf(fp, "UUID=%-27s", def->fs_uuid);
 		} else if (def->part_uuid) {
-			size += snprintf(buffer + size, total - size, "PARTUUID=%s\t\t", def->part_uuid);
+			fprintf(fp, "PARTUUID=%-23s", def->part_uuid);
 		}
 
 		if (def->mount_point)
-			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_point);
+			fprintf(fp, "%-16s", def->mount_point);
 		if (def->mount_fs)
-			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_fs);
+			fprintf(fp, "%-8s", def->mount_fs);
 		if (def->mount_opts)
-			size += snprintf(buffer + size, total - size, "%s\t\t", def->mount_opts);
+			fprintf(fp, "%s", def->mount_opts);
 
-		fprintf(fp, "%s\n", buffer);
+		fprintf(fp, "\n");
 	}
 }
