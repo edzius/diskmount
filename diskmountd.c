@@ -311,9 +311,10 @@ print_usage(void)
 {
 	fprintf(stderr, "Usage: diskmountd <options>\n"
 		"  -b, --background    Run as daemon.\n"
-		"  -n, --dry-run       No real actions.\n"
-		"  -d, --debug         Debug mode.\n"
+		"  -m, --monitor       Event monitoring.\n"
+		"  -k, --kevent        Force kernel uevent.\n"
 		"  -v, --verbose       Increase verbosity.\n"
+		"  -d, --debug         Debug mode.\n"
 #ifdef WITH_UGID
 		"  -u, --user <name>   User name.\n"
 		"  -g, --group <name>  Group name.\n"
@@ -326,8 +327,8 @@ static struct option long_options[] =
 {
 	{ "help",	no_argument,       0, 'h' },
 	{ "background",	no_argument,       0, 'b' },
-	{ "kernel",	no_argument,       0, 'k' },
 	{ "monitor",	no_argument,       0, 'm' },
+	{ "kevent",	no_argument,       0, 'k' },
 	{ "verbose",	no_argument,       0, 'v' },
 	{ "debug",	no_argument,       0, 'd' },
 #ifdef WITH_UGID
