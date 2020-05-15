@@ -47,6 +47,30 @@ static void sigterm(int signo)
 	quit = 1;
 }
 
+static int perform_mount(const char *device, const char *point,
+			  const char *type, unsigned long flags, const char *opts)
+{
+#ifdef WITH_SHMOUNT
+	char cmd[128];
+	snprintf(cmd, sizeof(cmd), "mount -t '%s' -o '%s' %s %s",
+		 type, opts ? opts : "rw", device, point);
+	return system(cmd);
+#else
+	return mount(device, point, fs, flags, data);
+#endif
+}
+
+static int perform_umount(const char *device, const char *point)
+{
+#ifdef WITH_SHMOUNT
+	char cmd[32];
+	snprintf(cmd, sizeof(cmd), "umount %s", point);
+	return system(cmd);
+#else
+	return umount(point);
+#endif
+}
+
 static void process_mount(struct diskev *evt)
 {
 	char *point, *fs, *opts;
@@ -90,7 +114,7 @@ static void process_mount(struct diskev *evt)
 			verror("Failed to chown created dir '%s'", point);
 #endif
 
-		if (mount(device, point, fs, MS_NOATIME, opts))
+		if (perform_mount(device, point, fs, MS_NOSUID | MS_NOATIME, opts))
 			error("Failed to mount '%s' to '%s', type '%s', opts '%s': %u (%s)",
 			      device, point, fs, opts, errno, strerror(errno));
 		else
@@ -109,7 +133,7 @@ static void process_mount(struct diskev *evt)
 
 		info("Unmounting '%s' -> '%s'", device, point);
 
-		if (umount(point))
+		if (perform_umount(device, point))
 			error("Failed to unmount '%s' from '%s': %u (%s)",
 			      device, point, errno, strerror(errno));
 		else
