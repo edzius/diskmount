@@ -106,11 +106,13 @@ static void conf_add_entry(struct mntent *ent)
 
 	if (!strlen(ent->mnt_type))
 		goto done;
-	def->mount_fs = strdup(ent->mnt_type);
+	if (strcmp(ent->mnt_type, "-"))
+		def->mount_fs = strdup(ent->mnt_type);
 
 	if (!strlen(ent->mnt_opts))
 		goto done;
-	def->mount_opts = strdup(ent->mnt_opts);
+	if (strcmp(ent->mnt_opts, "-"))
+		def->mount_opts = strdup(ent->mnt_opts);
 
 done:
 	list_add_tail(&def->list, &mount_conf);
