@@ -16,6 +16,9 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#ifdef WITH_LIBMOUNT
+#include <libmount/libmount.h>
+#endif
 
 #include "util.h"
 #include "diskconf.h"
@@ -50,7 +53,58 @@ static void sigterm(int signo)
 static int perform_mount(const char *device, const char *point,
 			  const char *type, unsigned long flags, const char *opts)
 {
-#ifdef WITH_SHMOUNT
+#if defined(WITH_LIBMOUNT)
+	struct libmnt_context *cxt;
+
+	mnt_init_debug(0);
+	cxt = mnt_new_context();
+	if (!cxt) {
+		verror("Failed to allocate MNT context");
+		return -1;
+	}
+
+	if (mnt_context_enable_verbose(cxt, 1)) {
+		verror("Failed to set MNT verbose");
+	}
+
+	if (mnt_context_append_options(cxt, opts ? opts : "rw")) {
+		verror("Failed to set MNT 'rw' options '%s'", opts);
+		goto fail;
+	}
+
+	if (mnt_context_set_fstype(cxt, type)) {
+		verror("Failed to set MNT type '%s'", type);
+		goto fail;
+	}
+
+	if (mnt_context_set_source(cxt, device)) {
+		verror("Failed to set MNT source '%s'", device);
+		goto fail;
+	}
+
+	if (mnt_context_set_target(cxt, point)) {
+		verror("Failed to set MNT target '%s'", point);
+		goto fail;
+	}
+
+	if (mnt_context_set_mflags(cxt, flags)) {
+		verror("Failed to set MNT flags '%lu'", flags);
+		goto fail;
+	}
+
+	if (mnt_context_is_restricted(cxt)) {
+		vwarn("Mounting is restricted");
+	}
+
+	if (mnt_context_mount(cxt)) {
+		goto fail;
+	}
+
+	return 0;
+fail:
+	mnt_free_context(cxt);
+	return 1;
+#elif defined(WITH_SHMOUNT)
 	char cmd[128];
 	snprintf(cmd, sizeof(cmd), "mount -t '%s' -o '%s' %s %s",
 		 type, opts ? opts : "rw", device, point);
@@ -62,7 +116,7 @@ static int perform_mount(const char *device, const char *point,
 
 static int perform_umount(const char *device, const char *point)
 {
-#ifdef WITH_SHMOUNT
+#if defined(WITH_SHMOUNT)
 	char cmd[32];
 	snprintf(cmd, sizeof(cmd), "umount %s", point);
 	return system(cmd);
