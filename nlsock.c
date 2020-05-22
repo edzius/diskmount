@@ -154,6 +154,7 @@ int nlev_parse(struct diskev *evt, char *data, int size)
 {
 	char *cur, *end;
 	int cnt;
+	int prc = 0;
 
 	memset(evt, 0, sizeof(*evt));
 
@@ -166,6 +167,8 @@ int nlev_parse(struct diskev *evt, char *data, int size)
 
 		nlev_update_part(evt, cur);
 		cur += cnt + 1;
+		prc += cnt + 1;
+		vdebug("Processed NL param, size %u, progress %u/%u", cnt, prc, size);
 	}
 
 	if (ev_check(evt)) {
