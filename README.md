@@ -30,7 +30,7 @@ events and pass them for mounting.
 
 * WITH_UGID -- option enables uid/gid switching and specifying
   username/password when initializing mount directories.
-* WITH_BLKID -- enables linking with libblkid, enables extra
+* WITH_LIBBLKID -- enables linking with libblkid, enables extra
   disk properties resolution capabilities for augmenting kernel
   events. If something does not work with kernel evens libblkid
   is likely to fix it.

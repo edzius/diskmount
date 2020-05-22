@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#ifdef WITH_BLKID
+#ifdef WITH_LIBBLKID
 #include <blkid/blkid.h>
 #endif
 
@@ -138,7 +138,7 @@ int ev_validate(struct diskev *evt)
 int ev_sanitize(struct diskev *evt)
 {
 	const char *val;
-#ifdef WITH_BLKID
+#ifdef WITH_LIBBLKID
 	blkid_probe pr;
 #endif
 
@@ -167,7 +167,7 @@ int ev_sanitize(struct diskev *evt)
 		}
 	}
 
-#ifdef WITH_BLKID
+#ifdef WITH_LIBBLKID
 	if (evt->fsuuid && evt->partuuid && evt->filesys)
 		return 0;
 
